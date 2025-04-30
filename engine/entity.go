@@ -1383,11 +1383,17 @@ func (p *Player) Reset() {
         p.BulletCount = 200
     }
 
-    // Reset clip system
+    // Reset clip system for machine gun
     p.CurrentClip = minInt(p.ClipSize, p.BulletCount)
     p.BulletCount -= p.CurrentClip
     p.IsReloading = false
     p.ReloadTimer = 0
+
+    // Reset clip system for rocket launcher
+    p.CurrentRocket = minInt(p.RocketClipSize, p.RocketCount)
+    p.RocketCount -= p.CurrentRocket
+    p.IsRocketReloading = false
+    p.RocketReloadTimer = 0
 }
 
 // Entity interface implementation

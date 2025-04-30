@@ -492,6 +492,9 @@ func (g *Game) Update() error {
 	// Check for player-flag collision
 	g.checkPlayerFlagCollision()
 
+	// Update input state for the next frame
+	g.updateInputState()
+
 	return nil
 }
 
@@ -756,10 +759,11 @@ func (g *Game) handleInput() {
 		if g.player.CurrentWeapon == 0 {
 			// Reload machine gun
 			g.player.StartReload()
-		} else {
+		} else if g.player.CurrentWeapon == 1 {
 			// Reload rocket launcher
 			g.player.StartRocketReload()
 		}
+		// Grenades don't need reloading
 	}
 
 	// Testing keys
@@ -872,9 +876,6 @@ func (g *Game) isKeyPressedPreviously(key ebiten.Key) bool {
 	// Check if the key was pressed in the previous frame
 	wasPressed, exists := g.prevKeys[key]
 
-	// Update the key state for the next frame
-	g.prevKeys[key] = ebiten.IsKeyPressed(key)
-
 	// If the key exists in the map, return its previous state
 	// Otherwise, return false (key was not pressed)
 	return exists && wasPressed
@@ -885,12 +886,28 @@ func (g *Game) isMouseButtonPressedPreviously(button ebiten.MouseButton) bool {
 	// Check if the button was pressed in the previous frame
 	wasPressed, exists := g.prevMouseButtons[button]
 
-	// Update the button state for the next frame
-	g.prevMouseButtons[button] = ebiten.IsMouseButtonPressed(button)
-
 	// If the button exists in the map, return its previous state
 	// Otherwise, return false (button was not pressed)
 	return exists && wasPressed
+}
+
+// updateInputState updates the state of all keys and mouse buttons for the next frame
+func (g *Game) updateInputState() {
+	// Update key states for weapon switching keys
+	g.prevKeys[ebiten.Key1] = ebiten.IsKeyPressed(ebiten.Key1)
+	g.prevKeys[ebiten.Key2] = ebiten.IsKeyPressed(ebiten.Key2)
+	g.prevKeys[ebiten.Key3] = ebiten.IsKeyPressed(ebiten.Key3)
+
+	// Update key states for other keys
+	g.prevKeys[ebiten.KeyEnter] = ebiten.IsKeyPressed(ebiten.KeyEnter)
+	g.prevKeys[ebiten.KeyD] = ebiten.IsKeyPressed(ebiten.KeyD)
+	g.prevKeys[ebiten.KeyR] = ebiten.IsKeyPressed(ebiten.KeyR)
+	g.prevKeys[ebiten.KeyF] = ebiten.IsKeyPressed(ebiten.KeyF)
+	g.prevKeys[ebiten.KeyT] = ebiten.IsKeyPressed(ebiten.KeyT)
+
+	// Update mouse button states
+	g.prevMouseButtons[ebiten.MouseButtonLeft] = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+	g.prevMouseButtons[ebiten.MouseButtonRight] = ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
 }
 
 // Draw draws the game
