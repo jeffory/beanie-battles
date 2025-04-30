@@ -321,37 +321,116 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 // drawPlayer draws the player with more details
 func drawPlayer(screen *ebiten.Image, x, y float64, player *Player) {
-    // Main body - bean shaped (more oval)
+    // Main body - pinto bean shaped (light brown with spots)
     bodyColor := player.Color
 
-    // Draw bean body with more rounded appearance
+    // Draw bean body with more realistic pinto bean appearance
     beanWidth := player.Width * 1.2
     beanHeight := player.Height * 0.9
     beanX := x - (beanWidth - player.Width) / 2
     beanY := y + player.Height * 0.1
 
-    // Draw main bean body (oval shape)
+    // Draw main bean body (pinto bean shape - slightly asymmetric)
     for i := 0.0; i < beanWidth; i += 1.0 {
-        // Calculate height at this point to create oval shape
+        // Calculate position along the width
+        relativePos := i / beanWidth
+
+        // Create pinto bean shape (slightly asymmetric)
         distFromCenter := math.Abs(i - beanWidth/2)
-        heightReduction := (distFromCenter / (beanWidth/2)) * (beanWidth/8)
+
+        // Make slightly asymmetric for natural bean shape
+        asymmetry := 0.0
+        if i > beanWidth/2 {
+            asymmetry = (i - beanWidth/2) * 0.02 // Slight curve on right side
+        }
+
+        // Use more natural curve for bean shape
+        heightReduction := math.Pow(distFromCenter / (beanWidth/2), 1.5) * (beanWidth/7) + asymmetry
         columnHeight := beanHeight - heightReduction
 
-        ebitenutil.DrawRect(screen, beanX + i, beanY, 1, columnHeight, bodyColor)
+        // Determine if this pixel should have a spot (pinto bean characteristic)
+        // Create a few larger spots in specific areas
+        hasSpot := false
+        spotIntensity := 0.0
+
+        // Create a few defined spots in specific positions
+        spots := []struct{
+            centerX, centerY, radius float64
+        }{
+            {beanWidth * 0.3, beanHeight * 0.3, beanWidth * 0.15},
+            {beanWidth * 0.7, beanHeight * 0.5, beanWidth * 0.12},
+            {beanWidth * 0.5, beanHeight * 0.7, beanWidth * 0.1},
+            {beanWidth * 0.2, beanHeight * 0.6, beanWidth * 0.08},
+            {beanWidth * 0.8, beanHeight * 0.2, beanWidth * 0.09},
+        }
+
+        // Check if current pixel is within any spot
+        for _, spot := range spots {
+            // Calculate distance from spot center
+            pixelY := beanY + columnHeight/2 // Approximate y position
+            distX := math.Abs(i - spot.centerX)
+            distY := math.Abs(pixelY - (beanY + spot.centerY))
+            dist := math.Sqrt(distX*distX + distY*distY)
+
+            // If within spot radius, mark as spot with intensity based on distance
+            if dist < spot.radius {
+                hasSpot = true
+                // Fade spot intensity at edges
+                spotIntensity = math.Max(spotIntensity, 1.0 - dist/spot.radius)
+            }
+        }
+
+        // Add slight texture variation
+        colorVariation := uint8(math.Sin(relativePos*math.Pi*5) * 8)
+        pixelColor := color.RGBA{
+            R: addColorValue(bodyColor.R, colorVariation),
+            G: addColorValue(bodyColor.G, colorVariation),
+            B: addColorValue(bodyColor.B, colorVariation/2),
+            A: bodyColor.A,
+        }
+
+        // Apply spot color if this pixel is in a spot
+        if hasSpot {
+            // Darker brown for spots
+            spotColor := color.RGBA{
+                R: subtractColorValue(bodyColor.R, uint8(40.0 * spotIntensity)),
+                G: subtractColorValue(bodyColor.G, uint8(30.0 * spotIntensity)),
+                B: subtractColorValue(bodyColor.B, uint8(20.0 * spotIntensity)),
+                A: bodyColor.A,
+            }
+            pixelColor = spotColor
+        }
+
+        ebitenutil.DrawRect(screen, beanX + i, beanY, 1, columnHeight, pixelColor)
     }
 
-    // Draw bean "crease" line in middle
+    // Draw bean "crease" line with more natural curve
     creaseColor := color.RGBA{
         R: subtractColorValue(bodyColor.R, 40),
         G: subtractColorValue(bodyColor.G, 40),
         B: subtractColorValue(bodyColor.B, 40),
         A: bodyColor.A,
     }
-    creaseWidth := beanWidth * 0.6
-    creaseHeight := 2.0
+
+    // Draw curved crease instead of straight line
+    creaseWidth := beanWidth * 0.7
+    creaseSegments := 10
+    segmentWidth := creaseWidth / float64(creaseSegments)
     creaseX := beanX + (beanWidth - creaseWidth) / 2
-    creaseY := beanY + beanHeight * 0.4
-    ebitenutil.DrawRect(screen, creaseX, creaseY, creaseWidth, creaseHeight, creaseColor)
+    creaseBaseY := beanY + beanHeight * 0.4
+
+    for i := 0; i < creaseSegments; i++ {
+        segmentX := creaseX + float64(i) * segmentWidth
+
+        // Create slight curve in the crease
+        curveOffset := math.Sin(float64(i)/float64(creaseSegments-1)*math.Pi) * 2.5
+        segmentY := creaseBaseY - curveOffset
+
+        // Vary thickness slightly
+        thickness := 1.5 + math.Sin(float64(i)/float64(creaseSegments-1)*math.Pi) * 0.8
+
+        ebitenutil.DrawRect(screen, segmentX, segmentY, segmentWidth, thickness, creaseColor)
+    }
 
     // Draw head (slightly lighter color)
     headColor := color.RGBA{
@@ -888,34 +967,103 @@ func drawBullet(screen *ebiten.Image, x, y float64, bullet *Bullet) {
 
 // drawEnemy draws an enemy with more details
 func drawEnemy(screen *ebiten.Image, x, y float64, enemy *Enemy) {
+    // Determine bean type based on color
+    isKidneyBean := enemy.Color.R > enemy.Color.B // Kidney beans are red, navy beans are blue
+
     // Draw bean-shaped body
     beanWidth := enemy.Width * 1.2
     beanHeight := enemy.Height * 0.9
     beanX := x - (beanWidth - enemy.Width) / 2
     beanY := y + enemy.Height * 0.1
 
-    // Draw main bean body (oval shape)
-    for i := 0.0; i < beanWidth; i += 1.0 {
-        // Calculate height at this point to create oval shape
-        distFromCenter := math.Abs(i - beanWidth/2)
-        heightReduction := (distFromCenter / (beanWidth/2)) * (beanWidth/8)
-        columnHeight := beanHeight - heightReduction
+    // Draw main bean body with shape based on bean type
+    if isKidneyBean {
+        // Kidney bean - more curved, asymmetric shape
+        for i := 0.0; i < beanWidth; i += 1.0 {
+            // Calculate position along the width
+            relativePos := i / beanWidth
 
-        ebitenutil.DrawRect(screen, beanX + i, beanY, 1, columnHeight, enemy.Color)
+            // Create kidney bean shape (more curved on one side)
+            distFromCenter := math.Abs(i - beanWidth/2)
+
+            // Make one side more curved for kidney bean shape
+            asymmetry := 0.0
+            if i < beanWidth/2 {
+                asymmetry = (beanWidth/2 - i) * 0.04 // More curve on left side
+            }
+
+            heightReduction := (distFromCenter / (beanWidth/2)) * (beanWidth/8) + asymmetry
+            columnHeight := beanHeight - heightReduction
+
+            // Add slight indentation in middle (kidney bean characteristic)
+            if relativePos > 0.4 && relativePos < 0.6 {
+                columnHeight *= 0.95 // Slight indentation
+            }
+
+            // Draw with slight color variation for texture
+            colorVariation := uint8(math.Sin(relativePos*math.Pi*4) * 10)
+            pixelColor := color.RGBA{
+                R: addColorValue(enemy.Color.R, colorVariation),
+                G: addColorValue(enemy.Color.G, colorVariation/2),
+                B: addColorValue(enemy.Color.B, colorVariation/2),
+                A: enemy.Color.A,
+            }
+
+            ebitenutil.DrawRect(screen, beanX + i, beanY, 1, columnHeight, pixelColor)
+        }
+    } else {
+        // Navy bean - more rounded, symmetric shape
+        for i := 0.0; i < beanWidth; i += 1.0 {
+            // Calculate position along the width
+            relativePos := i / beanWidth
+
+            // Create rounder shape for navy beans
+            distFromCenter := math.Abs(i - beanWidth/2)
+
+            // Use quadratic function for rounder shape
+            heightReduction := math.Pow(distFromCenter / (beanWidth/2), 2) * (beanWidth/6)
+            columnHeight := beanHeight - heightReduction
+
+            // Add slight texture variation
+            colorVariation := uint8(math.Sin(relativePos*math.Pi*6) * 8)
+            pixelColor := color.RGBA{
+                R: addColorValue(enemy.Color.R, colorVariation/2),
+                G: addColorValue(enemy.Color.G, colorVariation/2),
+                B: addColorValue(enemy.Color.B, colorVariation),
+                A: enemy.Color.A,
+            }
+
+            ebitenutil.DrawRect(screen, beanX + i, beanY, 1, columnHeight, pixelColor)
+        }
     }
 
-    // Draw bean "crease" line in middle
+    // Draw bean "crease" line with more natural curve
     creaseColor := color.RGBA{
         R: subtractColorValue(enemy.Color.R, 40),
         G: subtractColorValue(enemy.Color.G, 40),
         B: subtractColorValue(enemy.Color.B, 40),
         A: enemy.Color.A,
     }
-    creaseWidth := beanWidth * 0.6
-    creaseHeight := 2.0
+
+    // Draw curved crease instead of straight line
+    creaseWidth := beanWidth * 0.7
+    creaseSegments := 10
+    segmentWidth := creaseWidth / float64(creaseSegments)
     creaseX := beanX + (beanWidth - creaseWidth) / 2
-    creaseY := beanY + beanHeight * 0.4
-    ebitenutil.DrawRect(screen, creaseX, creaseY, creaseWidth, creaseHeight, creaseColor)
+    creaseBaseY := beanY + beanHeight * 0.4
+
+    for i := 0; i < creaseSegments; i++ {
+        segmentX := creaseX + float64(i) * segmentWidth
+
+        // Create slight curve in the crease
+        curveOffset := math.Sin(float64(i)/float64(creaseSegments-1)*math.Pi) * 3.0
+        segmentY := creaseBaseY - curveOffset
+
+        // Vary thickness slightly
+        thickness := 1.5 + math.Sin(float64(i)/float64(creaseSegments-1)*math.Pi) * 1.0
+
+        ebitenutil.DrawRect(screen, segmentX, segmentY, segmentWidth, thickness, creaseColor)
+    }
 
     // Draw eyes (angry looking)
     eyeColor := color.RGBA{255, 255, 255, 255}
