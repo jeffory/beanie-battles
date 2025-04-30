@@ -1,0 +1,114 @@
+{
+  "name": "Level 4",
+  "platforms": [
+    {
+      "x": 0,
+      "y": 550,
+      "width": 4000,
+      "height": 50
+    },
+    {
+      "x": 100,
+      "y": 400,
+      "width": 200,
+      "height": 20
+    },
+    {
+      "x": 400,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 600,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 840,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 1120,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 1440,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 1800,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 2200,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 2640,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 3120,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 3640,
+      "y": 400,
+      "width": 80,
+      "height": 20
+    },
+    {
+      "x": 3200,
+      "y": 400,
+      "width": 200,
+      "height": 20
+    }
+  ],
+  "enemySpawns": [
+    {
+      "x": 440,
+      "y": 350,
+      "type": "navy"
+    },
+    {
+      "x": 1160,
+      "y": 350,
+      "type": "navy"
+    },
+    {
+      "x": 2240,
+      "y": 350,
+      "type": "navy"
+    },
+    {
+      "x": 3680,
+      "y": 350,
+      "type": "navy"
+    }
+  ],
+  "flagPosition": {
+    "x": 3300,
+    "y": 336
+  },
+  "playerStart": {
+    "x": 100,
+    "y": 100
+  },
+  "backgroundType": "default"
+}

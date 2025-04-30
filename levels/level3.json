@@ -1,0 +1,90 @@
+{
+  "name": "Level 3",
+  "platforms": [
+    {
+      "x": 0,
+      "y": 550,
+      "width": 4000,
+      "height": 50
+    },
+    {
+      "x": 100,
+      "y": 400,
+      "width": 200,
+      "height": 20
+    },
+    {
+      "x": 400,
+      "y": 350,
+      "width": 50,
+      "height": 200
+    },
+    {
+      "x": 600,
+      "y": 250,
+      "width": 50,
+      "height": 300
+    },
+    {
+      "x": 800,
+      "y": 150,
+      "width": 50,
+      "height": 400
+    },
+    {
+      "x": 450,
+      "y": 350,
+      "width": 150,
+      "height": 20
+    },
+    {
+      "x": 650,
+      "y": 250,
+      "width": 150,
+      "height": 20
+    },
+    {
+      "x": 850,
+      "y": 150,
+      "width": 150,
+      "height": 20
+    },
+    {
+      "x": 1100,
+      "y": 100,
+      "width": 200,
+      "height": 20
+    }
+  ],
+  "enemySpawns": [
+    {
+      "x": 450,
+      "y": 300,
+      "type": "kidney"
+    },
+    {
+      "x": 650,
+      "y": 200,
+      "type": "navy"
+    },
+    {
+      "x": 850,
+      "y": 100,
+      "type": "kidney"
+    },
+    {
+      "x": 1150,
+      "y": 50,
+      "type": "navy"
+    }
+  ],
+  "flagPosition": {
+    "x": 1200,
+    "y": 70
+  },
+  "playerStart": {
+    "x": 100,
+    "y": 100
+  },
+  "backgroundType": "default"
+}

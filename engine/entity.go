@@ -85,6 +85,19 @@ func (w *World) AddEntity(e Entity) {
     w.entities = append(w.entities, e)
 }
 
+// RemoveEntity removes an entity from the world
+func (w *World) RemoveEntity(e Entity) {
+    for i, entity := range w.entities {
+        if entity == e {
+            // Remove the entity by replacing it with the last entity
+            // and then truncating the slice
+            w.entities[i] = w.entities[len(w.entities)-1]
+            w.entities = w.entities[:len(w.entities)-1]
+            return
+        }
+    }
+}
+
 // Update updates all entities and handles physics
 func (w *World) Update() {
     // Update all entities
@@ -272,7 +285,7 @@ func (w *World) resolveCollision(a, b Entity) {
 }
 
 // Draw draws all entities in the world
-func (w *World) Draw(screen *ebiten.Image) {
+func (w *World) Draw(screen *ebiten.Image, editorMode bool) {
     for _, e := range w.entities {
         // Draw the entity with camera offset
         x := e.GetX() - w.camera.X
@@ -285,8 +298,11 @@ func (w *World) Draw(screen *ebiten.Image) {
 
         // Draw entities with improved visuals
         if player, ok := e.(*Player); ok {
-            // Draw player with more details
-            drawPlayer(screen, x, y, player)
+            // Skip drawing player if in editor mode
+            if !editorMode {
+                // Draw player with more details
+                drawPlayer(screen, x, y, player)
+            }
         } else if platform, ok := e.(*Platform); ok {
             // Draw platform with texture
             drawPlatform(screen, x, y, platform)
@@ -625,6 +641,49 @@ func drawPlayer(screen *ebiten.Image, x, y float64, player *Player) {
     if player.InvincibleTime > 0 && player.InvincibleTime % 4 < 2 {
         shieldColor := color.RGBA{255, 255, 255, 100}
         ebitenutil.DrawRect(screen, x-2, y-2, player.Width+4, player.Height+4, shieldColor)
+    }
+
+    // Draw reload spinner above the player if reloading
+    if player.IsReloading || player.IsRocketReloading {
+        // Position spinner above the player's head
+        spinnerX := x + player.Width/2
+        spinnerY := y - 20 // Position above the player's head
+
+        // Determine spinner rotation based on reload progress
+        var progress float64
+        if player.IsReloading {
+            progress = float64(player.ReloadTime - player.ReloadTimer) / float64(player.ReloadTime)
+        } else {
+            progress = float64(player.RocketReloadTime - player.RocketReloadTimer) / float64(player.RocketReloadTime)
+        }
+
+        // Spinner properties
+        spinnerRadius := 10.0
+        numSegments := 8
+        segmentRadius := 3.0
+
+        // Semi-transparent color for the spinner
+        spinnerColor := color.RGBA{255, 255, 255, 150} // Semi-transparent white
+        activeSegmentColor := color.RGBA{255, 215, 0, 200} // Semi-transparent gold for active segment
+
+        // Draw spinner segments
+        for i := 0; i < numSegments; i++ {
+            angle := float64(i) * (2 * math.Pi / float64(numSegments))
+
+            // Calculate segment position
+            segX := spinnerX + math.Cos(angle) * spinnerRadius
+            segY := spinnerY + math.Sin(angle) * spinnerRadius
+
+            // Determine if this segment should be highlighted based on progress
+            segmentProgress := float64(i) / float64(numSegments)
+
+            // Use different color for segments that represent completed progress
+            if segmentProgress <= progress {
+                drawCircle(screen, segX, segY, segmentRadius, activeSegmentColor)
+            } else {
+                drawCircle(screen, segX, segY, segmentRadius, spinnerColor)
+            }
+        }
     }
 }
 

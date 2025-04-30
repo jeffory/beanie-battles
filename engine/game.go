@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"math/rand"
+	"path/filepath"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -34,6 +35,23 @@ type Game struct {
 	prevMouseButtons map[ebiten.MouseButton]bool
 	isZooming      bool
 	zoomFactor     float64
+
+	// Level system
+	currentLevel   *Level
+	currentLevelIndex int
+	levels         []string
+	levelsDir      string
+
+	// Editor mode
+	editorMode     bool
+	editorTool     string // "platform", "enemy", "flag", "player"
+	editorPlatformWidth float64
+	editorPlatformHeight float64
+	editorEnemyType string
+	selectedEntity interface{}
+	dragging       bool
+	dragOffsetX    float64
+	dragOffsetY    float64
 }
 
 // NewGame creates a new Game instance
@@ -43,7 +61,7 @@ func NewGame(width, height int) (*Game, error) {
 		width:          width,
 		height:         height,
 		gravity:        0.5,
-		debug:          true,
+		debug:          false,
 		bullets:        make([]*Bullet, 0),
 		rockets:        make([]*Rocket, 0),
 		grenades:       make([]*Grenade, 0),
@@ -58,6 +76,19 @@ func NewGame(width, height int) (*Game, error) {
 		prevMouseButtons: make(map[ebiten.MouseButton]bool),
 		isZooming:      false,
 		zoomFactor:     1.0, // Default zoom factor (no zoom)
+
+		// Initialize level system
+		currentLevelIndex: 0,
+		levels:         make([]string, 0),
+		levelsDir:      "levels",
+
+		// Initialize editor mode
+		editorMode:     false,
+		editorTool:     "platform",
+		editorPlatformWidth: 200,
+		editorPlatformHeight: 20,
+		editorEnemyType: "kidney",
+		dragging:       false,
 	}
 
  	// Initialize the world with camera
@@ -67,76 +98,204 @@ func NewGame(width, height int) (*Game, error) {
 	g.player = NewPlayer(100, 100)
 	g.world.AddEntity(g.player)
 
-	// Create platforms
-	g.createPlatforms()
+	// Load levels or create default levels if none exist
+	levels, err := GetLevelList(g.levelsDir)
+	if err != nil {
+		fmt.Println("Error loading levels:", err)
+	}
+
+	if len(levels) > 0 {
+		g.levels = levels
+		// Load the first level
+		if err := g.LoadLevel(0); err != nil {
+			fmt.Println("Error loading level:", err)
+			// If level loading fails, create default level
+			g.createDefaultLevel()
+		}
+	} else {
+		// No levels found, create and save default levels
+		fmt.Println("No levels found, creating default levels...")
+		if err := CreateDefaultLevels(width, height); err != nil {
+			fmt.Println("Error creating default levels:", err)
+			// If creating default levels fails, create a single default level
+			g.createDefaultLevel()
+
+			// Save the default level
+			defaultLevel := CreateDefaultLevel(width, height)
+			err := defaultLevel.SaveToFile(filepath.Join(g.levelsDir, "level1.json"))
+			if err != nil {
+				fmt.Println("Error saving default level:", err)
+			}
+
+			// Add default level to levels list
+			g.levels = append(g.levels, "level1")
+		} else {
+			// Load the newly created levels
+			levels, _ := GetLevelList(g.levelsDir)
+			g.levels = levels
+			// Load the first level
+			g.LoadLevel(0)
+		}
+	}
 
 	return g, nil
 }
 
-// createPlatforms initializes the game platforms
-func (g *Game) createPlatforms() {
-	// Create a much wider ground platform to allow for side-scrolling
-	groundWidth := float64(g.width * 5) // 5 times the screen width
-	ground := NewPlatform(0, float64(g.height-50), groundWidth, 50)
-	g.platforms = append(g.platforms, ground)
-	g.world.AddEntity(ground)
+// LoadLevel loads a level from a file
+func (g *Game) LoadLevel(index int) error {
+	if index < 0 || index >= len(g.levels) {
+		return fmt.Errorf("invalid level index: %d", index)
+	}
 
-	// Create platforms across the wider level
-	// First screen
-	p1 := NewPlatform(100, 400, 200, 20)
-	g.platforms = append(g.platforms, p1)
-	g.world.AddEntity(p1)
+	// Load level from file
+	levelName := g.levels[index]
+	levelPath := filepath.Join(g.levelsDir, levelName+".json")
+	level, err := LoadLevelFromFile(levelPath)
+	if err != nil {
+		return fmt.Errorf("failed to load level: %v", err)
+	}
 
-	p2 := NewPlatform(400, 300, 200, 20)
-	g.platforms = append(g.platforms, p2)
-	g.world.AddEntity(p2)
+	// Set current level
+	g.currentLevel = level
+	g.currentLevelIndex = index
 
-	p3 := NewPlatform(200, 200, 200, 20)
-	g.platforms = append(g.platforms, p3)
-	g.world.AddEntity(p3)
+	// Reset level complete flag
+	g.levelComplete = false
 
-	// Second screen
-	p4 := NewPlatform(float64(g.width) + 100, 400, 200, 20)
-	g.platforms = append(g.platforms, p4)
-	g.world.AddEntity(p4)
+	// Clear existing platforms, enemies, and flag
+	g.clearLevel()
 
-	p5 := NewPlatform(float64(g.width) + 400, 300, 200, 20)
-	g.platforms = append(g.platforms, p5)
-	g.world.AddEntity(p5)
+	// Create platforms from level data
+	g.createPlatformsFromLevel()
 
-	// Third screen
-	p6 := NewPlatform(float64(g.width*2) + 100, 350, 200, 20)
-	g.platforms = append(g.platforms, p6)
-	g.world.AddEntity(p6)
+	// Set player position
+	g.player.X = g.currentLevel.PlayerStart.X
+	g.player.Y = g.currentLevel.PlayerStart.Y
 
-	p7 := NewPlatform(float64(g.width*2) + 400, 250, 200, 20)
-	g.platforms = append(g.platforms, p7)
-	g.world.AddEntity(p7)
-
-	// Fourth screen
-	p8 := NewPlatform(float64(g.width*3) + 100, 300, 200, 20)
-	g.platforms = append(g.platforms, p8)
-	g.world.AddEntity(p8)
-
-	p9 := NewPlatform(float64(g.width*3) + 400, 200, 200, 20)
-	g.platforms = append(g.platforms, p9)
-	g.world.AddEntity(p9)
-
-	// Add some vertical platforms for variety
-	v1 := NewPlatform(float64(g.width*4) - 100, 350, 50, 200)
-	g.platforms = append(g.platforms, v1)
-	g.world.AddEntity(v1)
-
-	// Create finish flag at the end of the level
-	flagX := float64(g.width*4) + 100 // Place flag at the far right of the level
-	flagY := float64(g.height - 114)  // Place flag on the ground
+	// Create flag
+	flagX := g.currentLevel.FlagPosition.X
+	flagY := g.currentLevel.FlagPosition.Y
 	g.flag = NewFlag(flagX, flagY)
 	g.world.AddEntity(g.flag)
 
-	// Add a platform under the flag
-	flagPlatform := NewPlatform(flagX - 50, flagY + 64, 150, 20)
-	g.platforms = append(g.platforms, flagPlatform)
-	g.world.AddEntity(flagPlatform)
+	return nil
+}
+
+// LoadNextLevel loads the next level
+func (g *Game) LoadNextLevel() error {
+	nextIndex := g.currentLevelIndex + 1
+	if nextIndex >= len(g.levels) {
+		// Wrap around to the first level
+		nextIndex = 0
+	}
+	return g.LoadLevel(nextIndex)
+}
+
+// SaveCurrentLevel saves the current level to a file
+func (g *Game) SaveCurrentLevel() error {
+	if g.currentLevel == nil {
+		return fmt.Errorf("no current level to save")
+	}
+
+	// Update level data from game state
+	g.updateLevelFromGameState()
+
+	// Save level to file
+	levelName := g.levels[g.currentLevelIndex]
+	levelPath := filepath.Join(g.levelsDir, levelName+".json")
+	return g.currentLevel.SaveToFile(levelPath)
+}
+
+// updateLevelFromGameState updates the current level data from the game state
+func (g *Game) updateLevelFromGameState() {
+	if g.currentLevel == nil {
+		return
+	}
+
+	// Clear existing platforms and enemy spawns
+	g.currentLevel.Platforms = make([]PlatformData, 0)
+	g.currentLevel.EnemySpawns = make([]EnemySpawnData, 0)
+
+	// Add platforms
+	for _, platform := range g.platforms {
+		g.currentLevel.AddPlatform(platform.X, platform.Y, platform.Width, platform.Height)
+	}
+
+	// Set flag position
+	if g.flag != nil {
+		g.currentLevel.SetFlagPosition(g.flag.X, g.flag.Y)
+	}
+
+	// Set player start position
+	g.currentLevel.SetPlayerStart(g.player.X, g.player.Y)
+}
+
+// createDefaultLevel creates the default level
+func (g *Game) createDefaultLevel() {
+	// Clear existing platforms, enemies, and flag
+	g.clearLevel()
+
+	// Create default level
+	g.currentLevel = CreateDefaultLevel(g.width, g.height)
+
+	// Create platforms from level data
+	g.createPlatformsFromLevel()
+
+	// Set player position
+	g.player.X = g.currentLevel.PlayerStart.X
+	g.player.Y = g.currentLevel.PlayerStart.Y
+
+	// Create flag
+	flagX := g.currentLevel.FlagPosition.X
+	flagY := g.currentLevel.FlagPosition.Y
+	g.flag = NewFlag(flagX, flagY)
+	g.world.AddEntity(g.flag)
+}
+
+// clearLevel removes all platforms, enemies, and the flag from the game
+func (g *Game) clearLevel() {
+	// Remove platforms from world
+	for _, platform := range g.platforms {
+		g.world.RemoveEntity(platform)
+	}
+	g.platforms = make([]*Platform, 0)
+
+	// Remove enemies from world
+	for _, enemy := range g.enemies {
+		g.world.RemoveEntity(enemy)
+	}
+	g.enemies = make([]*Enemy, 0)
+
+	// Remove flag from world
+	if g.flag != nil {
+		g.world.RemoveEntity(g.flag)
+		g.flag = nil
+	}
+}
+
+// createPlatformsFromLevel creates platforms from the current level data
+func (g *Game) createPlatformsFromLevel() {
+	if g.currentLevel == nil {
+		return
+	}
+
+	// Create platforms from level data
+	for _, platformData := range g.currentLevel.Platforms {
+		platform := NewPlatform(
+			platformData.X,
+			platformData.Y,
+			platformData.Width,
+			platformData.Height,
+		)
+		g.platforms = append(g.platforms, platform)
+		g.world.AddEntity(platform)
+	}
+}
+
+// createPlatforms initializes the game platforms (legacy function, kept for compatibility)
+func (g *Game) createPlatforms() {
+	// Create default level
+	g.createDefaultLevel()
 }
 
 // FireBullet creates a new bullet and adds it to the game
@@ -670,27 +829,52 @@ func (g *Game) checkPlayerDeath() {
 func (g *Game) handleInput() {
 	// If level is complete, only handle continue input
 	if g.levelComplete {
-		// Press Enter to continue
+		// Press Enter to continue to the next level
 		if ebiten.IsKeyPressed(ebiten.KeyEnter) && !g.isKeyPressedPreviously(ebiten.KeyEnter) {
-			// Reset the level (in a real game, you'd load the next level)
-			g.levelComplete = false
-			g.flag.Collected = false
+			// Load the next level
+			err := g.LoadNextLevel()
+			if err != nil {
+				fmt.Println("Error loading next level:", err)
+				// If loading the next level fails, reset the current level
+				g.levelComplete = false
+				g.flag.Collected = false
 
-			// Reset player position
-			g.player.X = 100
-			g.player.Y = 100
-			g.player.VelX = 0
-			g.player.VelY = 0
+				// Reset player position
+				g.player.X = g.currentLevel.PlayerStart.X
+				g.player.Y = g.currentLevel.PlayerStart.Y
+				g.player.VelX = 0
+				g.player.VelY = 0
 
-			// Reset camera
-			g.world.GetCamera().X = 0
+				// Reset camera
+				g.world.GetCamera().X = 0
 
-			// Clear enemies
-			for _, enemy := range g.enemies {
-				enemy.Active = false
+				// Clear enemies
+				for _, enemy := range g.enemies {
+					enemy.Active = false
+				}
+				g.cleanupEnemies()
 			}
-			g.cleanupEnemies()
 		}
+	}
+
+ 	// Press E to enter/exit editor mode (can be accessed anytime)
+ 	if ebiten.IsKeyPressed(ebiten.KeyE) && !g.isKeyPressedPreviously(ebiten.KeyE) {
+ 		g.editorMode = !g.editorMode
+ 		if g.editorMode {
+ 			fmt.Println("Entered editor mode")
+ 			// Reset level complete flag when entering editor mode
+ 			g.levelComplete = false
+ 		} else {
+ 			fmt.Println("Exited editor mode")
+ 			// Save the current level when exiting editor mode
+ 			g.SaveCurrentLevel()
+ 		}
+ 	}
+
+	// Check if in editor mode
+	if g.editorMode {
+		// Handle editor input
+		g.handleEditorInput()
 		return
 	}
 
@@ -749,9 +933,9 @@ func (g *Game) handleInput() {
 		}
 	}
 
-	// Toggle debug mode
+	// Set debug mode to false when D is pressed
 	if ebiten.IsKeyPressed(ebiten.KeyD) && !g.isKeyPressedPreviously(ebiten.KeyD) {
-		g.debug = !g.debug
+		g.debug = false
 	}
 
 	// Reload (R key)
@@ -891,19 +1075,203 @@ func (g *Game) isMouseButtonPressedPreviously(button ebiten.MouseButton) bool {
 	return exists && wasPressed
 }
 
+// handleEditorInput handles input for the level editor
+func (g *Game) handleEditorInput() {
+	// Get mouse position in world coordinates
+	mouseWorldX, mouseWorldY := g.getMouseWorldPosition()
+
+	// Tool selection
+	if ebiten.IsKeyPressed(ebiten.Key1) && !g.isKeyPressedPreviously(ebiten.Key1) {
+		g.editorTool = "platform"
+		fmt.Println("Selected platform tool")
+	} else if ebiten.IsKeyPressed(ebiten.Key2) && !g.isKeyPressedPreviously(ebiten.Key2) {
+		g.editorTool = "enemy"
+		fmt.Println("Selected enemy tool")
+	} else if ebiten.IsKeyPressed(ebiten.Key3) && !g.isKeyPressedPreviously(ebiten.Key3) {
+		g.editorTool = "flag"
+		fmt.Println("Selected flag tool")
+	} else if ebiten.IsKeyPressed(ebiten.Key4) && !g.isKeyPressedPreviously(ebiten.Key4) {
+		g.editorTool = "player"
+		fmt.Println("Selected player start tool")
+	}
+
+	// Enemy type selection (when enemy tool is selected)
+	if g.editorTool == "enemy" {
+		if ebiten.IsKeyPressed(ebiten.KeyK) && !g.isKeyPressedPreviously(ebiten.KeyK) {
+			g.editorEnemyType = "kidney"
+			fmt.Println("Selected kidney bean enemy")
+		} else if ebiten.IsKeyPressed(ebiten.KeyN) && !g.isKeyPressedPreviously(ebiten.KeyN) {
+			g.editorEnemyType = "navy"
+			fmt.Println("Selected navy bean enemy")
+		}
+	}
+
+	// Platform size adjustment (when platform tool is selected)
+	if g.editorTool == "platform" {
+		// Adjust width
+		if ebiten.IsKeyPressed(ebiten.KeyLeft) {
+			g.editorPlatformWidth = math.Max(20, g.editorPlatformWidth - 10)
+		} else if ebiten.IsKeyPressed(ebiten.KeyRight) {
+			g.editorPlatformWidth += 10
+		}
+
+		// Adjust height
+		if ebiten.IsKeyPressed(ebiten.KeyDown) {
+			g.editorPlatformHeight = math.Max(10, g.editorPlatformHeight - 5)
+		} else if ebiten.IsKeyPressed(ebiten.KeyUp) {
+			g.editorPlatformHeight += 5
+		}
+	}
+
+	// Check for left mouse button press
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && !g.isMouseButtonPressedPreviously(ebiten.MouseButtonLeft) {
+		// Place or select entity based on current tool
+		switch g.editorTool {
+		case "platform":
+			// Create new platform
+			platform := NewPlatform(
+				mouseWorldX - g.editorPlatformWidth/2,
+				mouseWorldY - g.editorPlatformHeight/2,
+				g.editorPlatformWidth,
+				g.editorPlatformHeight,
+			)
+			g.platforms = append(g.platforms, platform)
+			g.world.AddEntity(platform)
+			fmt.Printf("Added platform at (%.1f, %.1f)\n", mouseWorldX, mouseWorldY)
+
+		case "enemy":
+			// Create new enemy spawn point
+			g.currentLevel.AddEnemySpawn(mouseWorldX, mouseWorldY, g.editorEnemyType)
+			fmt.Printf("Added %s enemy spawn at (%.1f, %.1f)\n", g.editorEnemyType, mouseWorldX, mouseWorldY)
+
+		case "flag":
+			// Move flag
+			if g.flag != nil {
+				g.world.RemoveEntity(g.flag)
+			}
+			g.flag = NewFlag(mouseWorldX, mouseWorldY)
+			g.world.AddEntity(g.flag)
+			fmt.Printf("Moved flag to (%.1f, %.1f)\n", mouseWorldX, mouseWorldY)
+
+		case "player":
+			// Set player start position
+			g.player.X = mouseWorldX
+			g.player.Y = mouseWorldY
+			fmt.Printf("Set player start to (%.1f, %.1f)\n", mouseWorldX, mouseWorldY)
+		}
+	}
+
+	// Delete selected entity with Delete key
+	if ebiten.IsKeyPressed(ebiten.KeyDelete) && !g.isKeyPressedPreviously(ebiten.KeyDelete) {
+		// Find entity under mouse cursor
+		mouseWorldX, mouseWorldY := g.getMouseWorldPosition()
+
+		// Check platforms
+		for i, platform := range g.platforms {
+			if mouseWorldX >= platform.X && mouseWorldX <= platform.X + platform.Width &&
+			   mouseWorldY >= platform.Y && mouseWorldY <= platform.Y + platform.Height {
+				// Remove platform
+				g.world.RemoveEntity(platform)
+				g.platforms = append(g.platforms[:i], g.platforms[i+1:]...)
+				fmt.Printf("Deleted platform at (%.1f, %.1f)\n", platform.X, platform.Y)
+				break
+			}
+		}
+	}
+
+	// Save level with S key
+	if ebiten.IsKeyPressed(ebiten.KeyS) && !g.isKeyPressedPreviously(ebiten.KeyS) {
+		if err := g.SaveCurrentLevel(); err != nil {
+			fmt.Println("Error saving level:", err)
+		} else {
+			fmt.Println("Level saved successfully")
+		}
+	}
+
+	// Create new level with N key
+	if ebiten.IsKeyPressed(ebiten.KeyN) && !g.isKeyPressedPreviously(ebiten.KeyN) {
+		g.createNewLevel()
+	}
+
+	// Camera movement
+	cameraSpeed := 10.0
+	if ebiten.IsKeyPressed(ebiten.KeyA) {
+		g.world.GetCamera().X -= cameraSpeed
+	} else if ebiten.IsKeyPressed(ebiten.KeyD) {
+		g.world.GetCamera().X += cameraSpeed
+	}
+}
+
+// getMouseWorldPosition converts screen mouse coordinates to world coordinates
+func (g *Game) getMouseWorldPosition() (float64, float64) {
+	// Get mouse position in screen coordinates
+	mouseX, mouseY := ebiten.CursorPosition()
+
+	// Convert to world coordinates
+	camera := g.world.GetCamera()
+	mouseWorldX := float64(mouseX) + camera.X
+	mouseWorldY := float64(mouseY)
+
+	return mouseWorldX, mouseWorldY
+}
+
+// createNewLevel creates a new empty level
+func (g *Game) createNewLevel() {
+	// Generate a new level name
+	levelNum := len(g.levels) + 1
+	levelName := fmt.Sprintf("level%d", levelNum)
+
+	// Create new empty level
+	newLevel := NewLevel(fmt.Sprintf("Level %d", levelNum))
+
+	// Set default player start position
+	newLevel.SetPlayerStart(100, 100)
+
+	// Add ground platform
+	groundWidth := float64(g.width * 5)
+	newLevel.AddPlatform(0, float64(g.height-50), groundWidth, 50)
+
+	// Set flag position
+	flagX := float64(g.width*2)
+	flagY := float64(g.height - 114)
+	newLevel.SetFlagPosition(flagX, flagY)
+
+	// Save new level
+	levelPath := filepath.Join(g.levelsDir, levelName+".json")
+	if err := newLevel.SaveToFile(levelPath); err != nil {
+		fmt.Println("Error saving new level:", err)
+		return
+	}
+
+	// Add to levels list
+	g.levels = append(g.levels, levelName)
+
+	// Load the new level
+	g.currentLevelIndex = len(g.levels) - 1
+	g.LoadLevel(g.currentLevelIndex)
+
+	fmt.Printf("Created new level: %s\n", levelName)
+}
+
 // updateInputState updates the state of all keys and mouse buttons for the next frame
 func (g *Game) updateInputState() {
 	// Update key states for weapon switching keys
 	g.prevKeys[ebiten.Key1] = ebiten.IsKeyPressed(ebiten.Key1)
 	g.prevKeys[ebiten.Key2] = ebiten.IsKeyPressed(ebiten.Key2)
 	g.prevKeys[ebiten.Key3] = ebiten.IsKeyPressed(ebiten.Key3)
+	g.prevKeys[ebiten.Key4] = ebiten.IsKeyPressed(ebiten.Key4)
 
 	// Update key states for other keys
 	g.prevKeys[ebiten.KeyEnter] = ebiten.IsKeyPressed(ebiten.KeyEnter)
 	g.prevKeys[ebiten.KeyD] = ebiten.IsKeyPressed(ebiten.KeyD)
+	g.prevKeys[ebiten.KeyE] = ebiten.IsKeyPressed(ebiten.KeyE)
 	g.prevKeys[ebiten.KeyR] = ebiten.IsKeyPressed(ebiten.KeyR)
 	g.prevKeys[ebiten.KeyF] = ebiten.IsKeyPressed(ebiten.KeyF)
 	g.prevKeys[ebiten.KeyT] = ebiten.IsKeyPressed(ebiten.KeyT)
+	g.prevKeys[ebiten.KeyS] = ebiten.IsKeyPressed(ebiten.KeyS)
+	g.prevKeys[ebiten.KeyN] = ebiten.IsKeyPressed(ebiten.KeyN)
+	g.prevKeys[ebiten.KeyK] = ebiten.IsKeyPressed(ebiten.KeyK)
+	g.prevKeys[ebiten.KeyDelete] = ebiten.IsKeyPressed(ebiten.KeyDelete)
 
 	// Update mouse button states
 	g.prevMouseButtons[ebiten.MouseButtonLeft] = ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
@@ -919,13 +1287,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawBackground(screen)
 
 	// Draw all entities
-	g.world.Draw(screen)
+	g.world.Draw(screen, g.editorMode)
 
 	// Draw blood particles
 	g.drawBloodParticles(screen)
 
 	// Draw UI elements
-	g.drawUI(screen)
+	if g.editorMode {
+		// Draw editor UI
+		g.drawEditorUI(screen)
+	} else {
+		// Draw game UI
+		g.drawUI(screen)
+	}
 
 	// Draw crosshair at mouse position
 	g.drawCrosshair(screen)
@@ -933,6 +1307,113 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw debug info
 	if g.debug {
 		g.drawDebugInfo(screen)
+	}
+}
+
+// drawEditorUI draws the editor UI
+func (g *Game) drawEditorUI(screen *ebiten.Image) {
+	// Draw editor info box
+	boxWidth := 300
+	boxHeight := 180
+	boxX := 20
+	boxY := 20
+
+	// Draw background with border
+	ebitenutil.DrawRect(screen, float64(boxX), float64(boxY), float64(boxWidth), float64(boxHeight), color.RGBA{40, 40, 40, 220})
+
+	// Draw border
+	borderSize := 2.0
+	borderColor := color.RGBA{255, 215, 0, 255} // Gold
+	ebitenutil.DrawRect(screen, float64(boxX), float64(boxY), float64(boxWidth), borderSize, borderColor)
+	ebitenutil.DrawRect(screen, float64(boxX), float64(boxY+boxHeight-int(borderSize)), float64(boxWidth), borderSize, borderColor)
+	ebitenutil.DrawRect(screen, float64(boxX), float64(boxY), borderSize, float64(boxHeight), borderColor)
+	ebitenutil.DrawRect(screen, float64(boxX+boxWidth-int(borderSize)), float64(boxY), borderSize, float64(boxHeight), borderColor)
+
+	// Draw title
+	titleY := boxY + 10
+	ebitenutil.DebugPrintAt(screen, "LEVEL EDITOR", boxX + 10, titleY)
+
+	// Draw current level info
+	levelY := titleY + 20
+	levelInfo := fmt.Sprintf("Level: %s (%d/%d)", g.levels[g.currentLevelIndex], g.currentLevelIndex+1, len(g.levels))
+	ebitenutil.DebugPrintAt(screen, levelInfo, boxX + 10, levelY)
+
+	// Draw current tool info
+	toolY := levelY + 20
+	toolInfo := fmt.Sprintf("Tool: %s", g.editorTool)
+	ebitenutil.DebugPrintAt(screen, toolInfo, boxX + 10, toolY)
+
+	// Draw tool-specific info
+	infoY := toolY + 20
+	switch g.editorTool {
+	case "platform":
+		platformInfo := fmt.Sprintf("Platform Size: %.0f x %.0f", g.editorPlatformWidth, g.editorPlatformHeight)
+		ebitenutil.DebugPrintAt(screen, platformInfo, boxX + 10, infoY)
+		infoY += 20
+		ebitenutil.DebugPrintAt(screen, "Use arrow keys to adjust size", boxX + 10, infoY)
+	case "enemy":
+		enemyInfo := fmt.Sprintf("Enemy Type: %s", g.editorEnemyType)
+		ebitenutil.DebugPrintAt(screen, enemyInfo, boxX + 10, infoY)
+		infoY += 20
+		ebitenutil.DebugPrintAt(screen, "Press K for kidney bean, N for navy bean", boxX + 10, infoY)
+	}
+
+	// Draw controls
+	controlsY := infoY + 30
+	ebitenutil.DebugPrintAt(screen, "Controls:", boxX + 10, controlsY)
+	controlsY += 15
+	ebitenutil.DebugPrintAt(screen, "1-4: Select tool (Platform, Enemy, Flag, Player)", boxX + 10, controlsY)
+	controlsY += 15
+	ebitenutil.DebugPrintAt(screen, "Left Click: Place/Select entity", boxX + 10, controlsY)
+	controlsY += 15
+	ebitenutil.DebugPrintAt(screen, "Delete: Delete entity under cursor", boxX + 10, controlsY)
+	controlsY += 15
+	ebitenutil.DebugPrintAt(screen, "S: Save level", boxX + 10, controlsY)
+	controlsY += 15
+	ebitenutil.DebugPrintAt(screen, "N: Create new level", boxX + 10, controlsY)
+	controlsY += 15
+	ebitenutil.DebugPrintAt(screen, "E: Exit editor mode", boxX + 10, controlsY)
+
+	// Draw entity preview at mouse position
+	mouseX, mouseY := ebiten.CursorPosition()
+	mouseWorldX, mouseWorldY := g.getMouseWorldPosition()
+
+	switch g.editorTool {
+	case "platform":
+		// Draw platform preview
+		previewX := mouseWorldX - g.editorPlatformWidth/2 - g.world.GetCamera().X
+		previewY := mouseWorldY - g.editorPlatformHeight/2
+		previewColor := color.RGBA{0, 255, 0, 128} // Semi-transparent green
+		ebitenutil.DrawRect(screen, previewX, previewY, g.editorPlatformWidth, g.editorPlatformHeight, previewColor)
+
+	case "enemy":
+		// Draw enemy preview
+		previewRadius := 16.0
+		previewX := float64(mouseX)
+		previewY := float64(mouseY)
+		previewColor := color.RGBA{139, 0, 0, 128} // Semi-transparent dark red for kidney bean
+		if g.editorEnemyType == "navy" {
+			previewColor = color.RGBA{0, 0, 128, 128} // Semi-transparent dark blue for navy bean
+		}
+		drawCircle(screen, previewX, previewY, previewRadius, previewColor)
+
+	case "flag":
+		// Draw flag preview
+		previewWidth := 32.0
+		previewHeight := 64.0
+		previewX := float64(mouseX) - previewWidth/2
+		previewY := float64(mouseY) - previewHeight/2
+		previewColor := color.RGBA{255, 215, 0, 128} // Semi-transparent gold
+		ebitenutil.DrawRect(screen, previewX, previewY, previewWidth, previewHeight, previewColor)
+
+	case "player":
+		// Draw player preview
+		previewWidth := 32.0
+		previewHeight := 64.0
+		previewX := float64(mouseX) - previewWidth/2
+		previewY := float64(mouseY) - previewHeight/2
+		previewColor := color.RGBA{160, 120, 80, 128} // Semi-transparent light brown
+		ebitenutil.DrawRect(screen, previewX, previewY, previewWidth, previewHeight, previewColor)
 	}
 }
 

@@ -1,0 +1,115 @@
+{
+  "name": "Level 7",
+  "platforms": [
+    {
+      "x": 0,
+      "y": 550,
+      "width": 4000,
+      "height": 50
+    },
+    {
+      "x": 100,
+      "y": 400,
+      "width": 200,
+      "height": 20
+    },
+    {
+      "x": 400,
+      "y": 450,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 400,
+      "y": 250,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 600,
+      "y": 350,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 600,
+      "y": 150,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 800,
+      "y": 450,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 800,
+      "y": 250,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 1000,
+      "y": 350,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 1000,
+      "y": 150,
+      "width": 20,
+      "height": 100
+    },
+    {
+      "x": 400,
+      "y": 350,
+      "width": 200,
+      "height": 20
+    },
+    {
+      "x": 600,
+      "y": 250,
+      "width": 200,
+      "height": 20
+    },
+    {
+      "x": 800,
+      "y": 150,
+      "width": 200,
+      "height": 20
+    },
+    {
+      "x": 1000,
+      "y": 50,
+      "width": 200,
+      "height": 20
+    }
+  ],
+  "enemySpawns": [
+    {
+      "x": 500,
+      "y": 300,
+      "type": "kidney"
+    },
+    {
+      "x": 700,
+      "y": 200,
+      "type": "navy"
+    },
+    {
+      "x": 900,
+      "y": 100,
+      "type": "kidney"
+    }
+  ],
+  "flagPosition": {
+    "x": 1100,
+    "y": -14
+  },
+  "playerStart": {
+    "x": 100,
+    "y": 100
+  },
+  "backgroundType": "default"
+}
