@@ -14,6 +14,7 @@ type Camera struct {
 	Y      float64
 	Width  int
 	Height int
+	Zoom   float64 // Zoom factor (1.0 = no zoom)
 }
 
 // NewCamera creates a new camera with the given dimensions
@@ -23,6 +24,7 @@ func NewCamera(width, height int) *Camera {
 		Y:      0,
 		Width:  width,
 		Height: height,
+		Zoom:   1.0, // Default zoom factor (no zoom)
 	}
 }
 
@@ -740,8 +742,15 @@ func drawPlatform(screen *ebiten.Image, x, y float64, platform *Platform) {
 
 // drawBullet draws a bullet with trail effect
 func drawBullet(screen *ebiten.Image, x, y float64, bullet *Bullet) {
-    // Draw main bullet
-    ebitenutil.DrawRect(screen, x, y, bullet.Width, bullet.Height, bullet.Color)
+    // Calculate angle from velocity
+    angle := math.Atan2(bullet.VelY, bullet.VelX)
+
+    // Calculate center of bullet
+    centerX := x + bullet.Width/2
+    centerY := y + bullet.Height/2
+
+    // Draw main bullet using rotated rectangle
+    drawRotatedRectangle(screen, centerX, centerY, bullet.Width, bullet.Height, angle, bullet.Color)
 
     // Draw bullet trail
     trailLength := 5
@@ -749,10 +758,10 @@ func drawBullet(screen *ebiten.Image, x, y float64, bullet *Bullet) {
     trailStep := trailAlpha / uint8(trailLength)
 
     for i := 1; i <= trailLength; i++ {
-        trailX := x - float64(i*2)
-        if bullet.VelX < 0 {
-            trailX = x + bullet.Width + float64(i*2) - bullet.Width/2
-        }
+        // Calculate trail position based on angle
+        trailDistance := float64(i*2)
+        trailX := centerX - math.Cos(angle) * trailDistance
+        trailY := centerY - math.Sin(angle) * trailDistance
 
         trailColor := color.RGBA{
             bullet.Color.R,
@@ -764,12 +773,14 @@ func drawBullet(screen *ebiten.Image, x, y float64, bullet *Bullet) {
         trailWidth := bullet.Width / 2
         trailHeight := bullet.Height / 2
 
-        ebitenutil.DrawRect(
+        // Draw trail segment as rotated rectangle
+        drawRotatedRectangle(
             screen,
             trailX,
-            y + (bullet.Height-trailHeight)/2,
+            trailY,
             trailWidth,
             trailHeight,
+            angle,
             trailColor,
         )
     }
@@ -1504,14 +1515,14 @@ type Enemy struct {
 }
 
 // NewBullet creates a new bullet entity
-func NewBullet(x, y, velX float64) *Bullet {
+func NewBullet(x, y, velX, velY float64) *Bullet {
     return &Bullet{
         X:        x,
         Y:        y,
         Width:    8,
         Height:   4,
         VelX:     velX,
-        VelY:     0,
+        VelY:     velY,
         Active:   true,
         Color:    color.RGBA{255, 255, 0, 255}, // Yellow
         Lifetime: 120, // Frames before bullet disappears

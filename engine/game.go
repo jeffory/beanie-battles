@@ -29,6 +29,9 @@ type Game struct {
 	mouseX         int
 	mouseY         int
 	prevKeys       map[ebiten.Key]bool
+	prevMouseButtons map[ebiten.MouseButton]bool
+	isZooming      bool
+	zoomFactor     float64
 }
 
 // NewGame creates a new Game instance
@@ -49,6 +52,9 @@ func NewGame(width, height int) (*Game, error) {
 		mouseX:         0,
 		mouseY:         0,
 		prevKeys:       make(map[ebiten.Key]bool),
+		prevMouseButtons: make(map[ebiten.MouseButton]bool),
+		isZooming:      false,
+		zoomFactor:     1.0, // Default zoom factor (no zoom)
 	}
 
  	// Initialize the world with camera
@@ -169,8 +175,7 @@ func (g *Game) FireBullet() {
 	bulletVelY := math.Sin(g.player.GunAngle) * bulletSpeed
 
 	// Create new bullet with calculated trajectory
-	bullet := NewBullet(bulletX, bulletY, bulletVelX)
-	bullet.VelY = bulletVelY // Set Y velocity
+	bullet := NewBullet(bulletX, bulletY, bulletVelX, bulletVelY)
 
 	// Add bullet to game and world
 	g.bullets = append(g.bullets, bullet)
@@ -410,9 +415,21 @@ func (g *Game) Update() error {
 
 // updatePlayerGunAngle calculates the angle between the player and the mouse cursor
 func (g *Game) updatePlayerGunAngle() {
+	// Get the camera and zoom factor
+	camera := g.world.GetCamera()
+	zoomFactor := camera.Zoom
+
+	// Calculate the center of the screen
+	centerX := float64(camera.Width) / 2
+	centerY := float64(camera.Height) / 2
+
 	// Calculate the position of the player in screen coordinates
-	playerScreenX := g.player.X - g.world.GetCamera().X
-	playerScreenY := g.player.Y + g.player.Height/2 // Use the middle of the player for aiming
+	playerWorldX := g.player.X
+	playerWorldY := g.player.Y + g.player.Height/2 // Use the middle of the player for aiming
+
+	// Convert player world coordinates to screen coordinates with zoom
+	playerScreenX := centerX + (playerWorldX - camera.X - centerX) * zoomFactor
+	playerScreenY := centerY + (playerWorldY - centerY) * zoomFactor
 
 	// Calculate the angle between the player and the mouse cursor
 	dx := float64(g.mouseX) - playerScreenX
@@ -572,16 +589,16 @@ func (g *Game) handleInput() {
 	}
 
 	// Left/Right movement
-	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		g.player.MoveLeft()
-	} else if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+	} else if ebiten.IsKeyPressed(ebiten.KeyD) {
 		g.player.MoveRight()
 	} else {
 		g.player.StopHorizontal()
 	}
 
 	// Jump
-	if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+	if ebiten.IsKeyPressed(ebiten.KeySpace) || ebiten.IsKeyPressed(ebiten.KeyW) {
 		g.player.Jump()
 	}
 
@@ -594,8 +611,8 @@ func (g *Game) handleInput() {
 		g.player.CurrentWeapon = 2 // Switch to grenades
 	}
 
-	// Shoot based on current weapon
-	if ebiten.IsKeyPressed(ebiten.KeyX) {
+	// Shoot based on current weapon using primary mouse button (left click)
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		if g.player.CurrentWeapon == 0 {
 			// Fire machine gun
 			g.FireBullet()
@@ -605,6 +622,24 @@ func (g *Game) handleInput() {
 		} else if g.player.CurrentWeapon == 2 {
 			// Throw grenade
 			g.FireGrenade()
+		}
+	}
+
+	// Toggle zoom with secondary mouse button (right click)
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
+		if !g.isMouseButtonPressedPreviously(ebiten.MouseButtonRight) {
+			// Toggle zoom
+			g.isZooming = !g.isZooming
+
+			// Set zoom factor
+			if g.isZooming {
+				g.zoomFactor = 1.5 // Zoomed in
+			} else {
+				g.zoomFactor = 1.0 // Normal view
+			}
+
+			// Update camera zoom
+			g.world.GetCamera().Zoom = g.zoomFactor
 		}
 	}
 
@@ -734,8 +769,24 @@ func (g *Game) isKeyPressedPreviously(key ebiten.Key) bool {
 	return exists && wasPressed
 }
 
+// isMouseButtonPressedPreviously is a helper to detect mouse button press events
+func (g *Game) isMouseButtonPressedPreviously(button ebiten.MouseButton) bool {
+	// Check if the button was pressed in the previous frame
+	wasPressed, exists := g.prevMouseButtons[button]
+
+	// Update the button state for the next frame
+	g.prevMouseButtons[button] = ebiten.IsMouseButtonPressed(button)
+
+	// If the button exists in the map, return its previous state
+	// Otherwise, return false (button was not pressed)
+	return exists && wasPressed
+}
+
 // Draw draws the game
 func (g *Game) Draw(screen *ebiten.Image) {
+	// Hide the actual mouse cursor
+	ebiten.SetCursorMode(ebiten.CursorModeHidden)
+
 	// Draw a gradient background
 	g.drawBackground(screen)
 
@@ -745,10 +796,42 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw UI elements
 	g.drawUI(screen)
 
+	// Draw crosshair at mouse position
+	g.drawCrosshair(screen)
+
 	// Draw debug info
 	if g.debug {
 		g.drawDebugInfo(screen)
 	}
+}
+
+// drawCrosshair draws a crosshair at the mouse position
+func (g *Game) drawCrosshair(screen *ebiten.Image) {
+	// Crosshair properties
+	crosshairSize := 10.0
+	crosshairThickness := 2.0
+	crosshairColor := color.RGBA{255, 255, 255, 255} // White
+	crosshairOutlineColor := color.RGBA{0, 0, 0, 255} // Black
+
+	// Get mouse position
+	mouseX := float64(g.mouseX)
+	mouseY := float64(g.mouseY)
+
+	// Draw crosshair outline (black)
+	// Horizontal line
+	ebitenutil.DrawRect(screen, mouseX - crosshairSize - 1, mouseY - crosshairThickness/2 - 1, crosshairSize*2 + 2, crosshairThickness + 2, crosshairOutlineColor)
+	// Vertical line
+	ebitenutil.DrawRect(screen, mouseX - crosshairThickness/2 - 1, mouseY - crosshairSize - 1, crosshairThickness + 2, crosshairSize*2 + 2, crosshairOutlineColor)
+
+	// Draw crosshair (white)
+	// Horizontal line
+	ebitenutil.DrawRect(screen, mouseX - crosshairSize, mouseY - crosshairThickness/2, crosshairSize*2, crosshairThickness, crosshairColor)
+	// Vertical line
+	ebitenutil.DrawRect(screen, mouseX - crosshairThickness/2, mouseY - crosshairSize, crosshairThickness, crosshairSize*2, crosshairColor)
+
+	// Draw a small gap in the center
+	gapSize := 2.0
+	ebitenutil.DrawRect(screen, mouseX - gapSize, mouseY - gapSize, gapSize*2, gapSize*2, crosshairOutlineColor)
 }
 
 // drawBackground creates a gradient sky background

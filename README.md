@@ -4,8 +4,10 @@ A 2D platformer game where you play as a bean character battling against enemy b
 
 ## Controls
 
-- **Arrow Keys**: Move left/right and jump
-- **X**: Fire current weapon
+- **WASD Keys**: Move left/right (A/D) and jump (W)
+- **Mouse Movement**: Aim weapons
+- **Left Mouse Button**: Fire current weapon
+- **Right Mouse Button**: Toggle zoom for precision aiming
 - **1**: Switch to machine gun
 - **2**: Switch to rocket launcher
 - **3**: Switch to grenades
