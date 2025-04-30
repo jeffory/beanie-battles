@@ -18,6 +18,7 @@ type Game struct {
 	platforms      []*Platform
 	bullets        []*Bullet
 	rockets        []*Rocket
+	grenades       []*Grenade
 	enemies        []*Enemy
 	flag           *Flag
 	gravity        float64
@@ -40,6 +41,7 @@ func NewGame(width, height int) (*Game, error) {
 		debug:          true,
 		bullets:        make([]*Bullet, 0),
 		rockets:        make([]*Rocket, 0),
+		grenades:       make([]*Grenade, 0),
 		enemies:        make([]*Enemy, 0),
 		frameCount:     0,
 		enemySpawnTimer: 300, // Spawn first enemy after 5 seconds
@@ -229,6 +231,47 @@ func (g *Game) FireRocket() {
 	g.player.LastRocketFired = g.frameCount
 }
 
+// FireGrenade creates a new grenade and adds it to the game
+func (g *Game) FireGrenade() {
+	// Check if player has any grenades left
+	if g.player.GrenadeCount <= 0 {
+		return
+	}
+
+	// Check if enough time has passed since last grenade throw
+	if g.frameCount - g.player.LastGrenadeFired < g.player.GrenadeFireRate {
+		return
+	}
+
+	// Calculate grenade position based on player position and gun angle
+	gunLength := g.player.Width * 0.6 // Length of the gun
+	gunOffsetY := g.player.Height * 0.4 // Y position of the gun relative to player
+
+	// Calculate gun position
+	gunX := g.player.X + g.player.Width/2
+	gunY := g.player.Y + gunOffsetY
+
+	// Calculate grenade starting position at the end of the gun
+	grenadeX := gunX + math.Cos(g.player.GunAngle) * gunLength
+	grenadeY := gunY + math.Sin(g.player.GunAngle) * gunLength
+
+	// Calculate grenade velocity based on gun angle
+	grenadeSpeed := 10.0 // Grenade initial speed
+	grenadeVelX := math.Cos(g.player.GunAngle) * grenadeSpeed
+	grenadeVelY := math.Sin(g.player.GunAngle) * grenadeSpeed
+
+	// Create new grenade with calculated trajectory
+	grenade := NewGrenade(grenadeX, grenadeY, grenadeVelX, grenadeVelY)
+
+	// Add grenade to game and world
+	g.grenades = append(g.grenades, grenade)
+	g.world.AddEntity(grenade)
+
+	// Update player state
+	g.player.GrenadeCount--
+	g.player.LastGrenadeFired = g.frameCount
+}
+
 // SpawnEnemy creates a new enemy and adds it to the game
 func (g *Game) SpawnEnemy() {
 	// Determine spawn position based on player position
@@ -341,9 +384,10 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// Clean up inactive bullets, rockets, and enemies
+	// Clean up inactive bullets, rockets, grenades, and enemies
 	g.cleanupBullets()
 	g.cleanupRockets()
+	g.cleanupGrenades()
 	g.cleanupEnemies()
 
 	// Check for bullet-enemy collisions
@@ -351,6 +395,9 @@ func (g *Game) Update() error {
 
 	// Check for rocket-enemy collisions
 	g.checkRocketEnemyCollisions()
+
+	// Check for grenade-enemy collisions
+	g.checkGrenadeEnemyCollisions()
 
 	// Check for player-enemy collisions
 	g.checkPlayerEnemyCollisions()
@@ -538,11 +585,13 @@ func (g *Game) handleInput() {
 		g.player.Jump()
 	}
 
-	// Weapon switching (1 key for machine gun, 2 key for rocket launcher)
+	// Weapon switching (1 key for machine gun, 2 key for rocket launcher, 3 key for grenades)
 	if ebiten.IsKeyPressed(ebiten.Key1) && !g.isKeyPressedPreviously(ebiten.Key1) {
 		g.player.CurrentWeapon = 0 // Switch to machine gun
 	} else if ebiten.IsKeyPressed(ebiten.Key2) && !g.isKeyPressedPreviously(ebiten.Key2) {
 		g.player.CurrentWeapon = 1 // Switch to rocket launcher
+	} else if ebiten.IsKeyPressed(ebiten.Key3) && !g.isKeyPressedPreviously(ebiten.Key3) {
+		g.player.CurrentWeapon = 2 // Switch to grenades
 	}
 
 	// Shoot based on current weapon
@@ -550,9 +599,12 @@ func (g *Game) handleInput() {
 		if g.player.CurrentWeapon == 0 {
 			// Fire machine gun
 			g.FireBullet()
-		} else {
+		} else if g.player.CurrentWeapon == 1 {
 			// Fire rocket launcher
 			g.FireRocket()
+		} else if g.player.CurrentWeapon == 2 {
+			// Throw grenade
+			g.FireGrenade()
 		}
 	}
 
@@ -580,6 +632,7 @@ func (g *Game) handleInput() {
 		g.player.CurrentClip = g.player.ClipSize
 		g.player.RocketCount = 10
 		g.player.CurrentRocket = g.player.RocketClipSize
+		g.player.GrenadeCount = 5
 	}
 
 	// Take damage (T key)
@@ -599,6 +652,19 @@ func (g *Game) cleanupRockets() {
 	}
 
 	g.rockets = activeRockets
+}
+
+// cleanupGrenades removes inactive grenades from the game
+func (g *Game) cleanupGrenades() {
+	activeGrenades := make([]*Grenade, 0)
+
+	for _, grenade := range g.grenades {
+		if grenade.Active {
+			activeGrenades = append(activeGrenades, grenade)
+		}
+	}
+
+	g.grenades = activeGrenades
 }
 
 // checkRocketEnemyCollisions checks for collisions between rockets and enemies
@@ -622,6 +688,33 @@ func (g *Game) checkRocketEnemyCollisions() {
 				// Rocket hit enemy
 				enemy.TakeDamage(rocket.Damage)
 				rocket.Explode()
+				break
+			}
+		}
+	}
+}
+
+// checkGrenadeEnemyCollisions checks for collisions between grenades and enemies
+func (g *Game) checkGrenadeEnemyCollisions() {
+	for _, grenade := range g.grenades {
+		if !grenade.Active || grenade.Exploded {
+			continue
+		}
+
+		for _, enemy := range g.enemies {
+			if !enemy.Active || enemy.Dead {
+				continue
+			}
+
+			// Simple AABB collision detection
+			if grenade.X < enemy.X+enemy.Width &&
+				grenade.X+grenade.Width > enemy.X &&
+				grenade.Y < enemy.Y+enemy.Height &&
+				grenade.Y+grenade.Height > enemy.Y {
+
+				// Grenade hit enemy directly - explode
+				enemy.TakeDamage(grenade.Damage / 2) // Direct hit does half damage
+				grenade.Explode()
 				break
 			}
 		}
@@ -723,7 +816,7 @@ func (g *Game) drawUI(screen *ebiten.Image) {
 			reloadProgress := float64(g.player.ReloadTime - g.player.ReloadTimer) / float64(g.player.ReloadTime) * 100
 			ammoText = fmt.Sprintf("RELOADING... %.0f%%", reloadProgress)
 		}
-	} else {
+	} else if g.player.CurrentWeapon == 1 {
 		// Rocket launcher
 		weaponName = "ROCKET LAUNCHER"
 		ammoText = fmt.Sprintf("%d / %d", g.player.CurrentRocket, g.player.RocketCount)
@@ -734,6 +827,11 @@ func (g *Game) drawUI(screen *ebiten.Image) {
 			reloadProgress := float64(g.player.RocketReloadTime - g.player.RocketReloadTimer) / float64(g.player.RocketReloadTime) * 100
 			ammoText = fmt.Sprintf("RELOADING... %.0f%%", reloadProgress)
 		}
+	} else {
+		// Grenades
+		weaponName = "GRENADES"
+		ammoText = fmt.Sprintf("%d", g.player.GrenadeCount)
+		iconColor = color.RGBA{0, 150, 0, 255} // Green
 	}
 
 	// Combine weapon name and ammo text
@@ -765,12 +863,19 @@ func (g *Game) drawUI(screen *ebiten.Image) {
 	if g.player.CurrentWeapon == 0 {
 		// Draw bullet icon for machine gun
 		ebitenutil.DrawRect(screen, iconX, iconY, iconWidth, iconHeight, iconColor)
-	} else {
+	} else if g.player.CurrentWeapon == 1 {
 		// Draw rocket icon for rocket launcher
 		ebitenutil.DrawRect(screen, iconX, iconY, iconWidth, iconHeight, iconColor)
 		// Add fins to the rocket icon
 		ebitenutil.DrawRect(screen, iconX, iconY - 2, iconWidth/3, iconHeight/2, iconColor)
 		ebitenutil.DrawRect(screen, iconX, iconY + iconHeight, iconWidth/3, iconHeight/2, iconColor)
+	} else {
+		// Draw grenade icon (circle with pin)
+		// Draw grenade body (circle)
+		drawCircle(screen, iconX + iconWidth/2, iconY + iconHeight/2, iconWidth/2, iconColor)
+		// Draw pin
+		pinColor := color.RGBA{200, 200, 200, 255} // Silver
+		ebitenutil.DrawRect(screen, iconX + iconWidth/2 - 1, iconY - 3, 2, 3, pinColor)
 	}
 
 	// Draw text with offset to center vertically

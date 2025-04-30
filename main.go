@@ -3,8 +3,8 @@ package main
 import (
     "log"
 
-    "github.com/hajimehoshi/ebiten/v2"
     "beanie-battles/engine"
+    "github.com/hajimehoshi/ebiten/v2"
 )
 
 const (

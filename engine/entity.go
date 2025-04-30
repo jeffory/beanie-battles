@@ -103,10 +103,16 @@ func (w *World) applyPhysics() {
             continue
         }
 
-        // Apply gravity (with reduced effect for bullets)
+        // Apply gravity (with reduced effect for projectiles)
         if bullet, isBullet := e.(*Bullet); isBullet {
-            // Apply reduced gravity to bullets (1/5 of normal gravity)
-            bullet.VelY += w.gravity * 0.2
+            // Apply reduced gravity to bullets (1/10 of normal gravity)
+            bullet.VelY += w.gravity * 0.1
+        } else if rocket, isRocket := e.(*Rocket); isRocket {
+            // Apply reduced gravity to rockets (1/10 of normal gravity)
+            rocket.VelY += w.gravity * 0.1
+        } else if grenade, isGrenade := e.(*Grenade); isGrenade {
+            // Apply reduced gravity to grenades (1/5 of normal gravity)
+            grenade.VelY += w.gravity * 0.2
         } else {
             // Apply normal gravity to other entities
             e.SetVelY(e.GetVelY() + w.gravity)
@@ -153,6 +159,9 @@ func (w *World) resolveCollision(a, b Entity) {
 
     // Check if entity a is a bullet
     bullet, isBullet := a.(*Bullet)
+
+    // Check if entity a is a grenade
+    grenade, isGrenade := a.(*Grenade)
 
     // Check if entity a is an enemy
     enemy, isEnemy := a.(*Enemy)
@@ -224,6 +233,40 @@ func (w *World) resolveCollision(a, b Entity) {
         // Deactivate bullet when it hits a platform
         bullet.Active = false
     }
+
+    // Handle grenade vs platform collision
+    if isGrenade && isPlatform {
+        // Calculate overlap
+        overlapX := min(a.GetX()+a.GetWidth(), b.GetX()+b.GetWidth()) - max(a.GetX(), b.GetX())
+        overlapY := min(a.GetY()+a.GetHeight(), b.GetY()+b.GetHeight()) - max(a.GetY(), b.GetY())
+
+        // Resolve collision based on smallest overlap
+        if overlapX < overlapY {
+            // Horizontal collision - bounce with reduced velocity
+            if a.GetX() < b.GetX() {
+                a.SetX(b.GetX() - a.GetWidth())
+                a.SetVelX(-grenade.VelX * 0.6) // Bounce with 60% of velocity
+            } else {
+                a.SetX(b.GetX() + b.GetWidth())
+                a.SetVelX(-grenade.VelX * 0.6) // Bounce with 60% of velocity
+            }
+            // Decrease bounce counter
+            grenade.HandleBounce()
+        } else {
+            // Vertical collision
+            if a.GetY() < b.GetY() {
+                // Collision from above
+                a.SetY(b.GetY() - a.GetHeight())
+                a.SetVelY(-grenade.VelY * 0.5) // Bounce with 50% of velocity
+                // Decrease bounce counter
+                grenade.HandleBounce()
+            } else {
+                // Collision from below
+                a.SetY(b.GetY() + b.GetHeight())
+                a.SetVelY(0)
+            }
+        }
+    }
 }
 
 // Draw draws all entities in the world
@@ -254,6 +297,11 @@ func (w *World) Draw(screen *ebiten.Image) {
             if rocket.Active {
                 // Draw rocket with effects
                 drawRocket(screen, x, y, rocket)
+            }
+        } else if grenade, ok := e.(*Grenade); ok {
+            if grenade.Active {
+                // Draw grenade with effects
+                drawGrenade(screen, x, y, grenade)
             }
         } else if enemy, ok := e.(*Enemy); ok {
             if enemy.Active && !enemy.Dead {
@@ -513,6 +561,80 @@ func drawRocket(screen *ebiten.Image, x, y float64, rocket *Rocket) {
         coreTrailEndY := trailStartY - math.Sin(angle) * trailLength * 0.4
         ebitenutil.DrawLine(screen, trailStartX, trailStartY - rocket.Height/10, coreTrailEndX, coreTrailEndY, trailColor3)
         ebitenutil.DrawLine(screen, trailStartX, trailStartY + rocket.Height/10, coreTrailEndX, coreTrailEndY, trailColor3)
+    }
+}
+
+// drawGrenade draws a grenade with effects
+func drawGrenade(screen *ebiten.Image, x, y float64, grenade *Grenade) {
+    if grenade.Exploded {
+        // Draw explosion
+        explosionProgress := float64(grenade.ExplosionTimer) / float64(grenade.ExplosionTime)
+        explosionRadius := grenade.BlastRadius * explosionProgress
+        explosionAlpha := uint8(255 * (1 - explosionProgress))
+
+        // Draw explosion as concentric circles with fading colors
+        outerColor := color.RGBA{0, 150, 0, explosionAlpha} // Green
+        middleColor := color.RGBA{100, 200, 0, explosionAlpha} // Light green
+        innerColor := color.RGBA{255, 255, 255, explosionAlpha} // White
+
+        // Draw outer circle
+        drawCircle(screen, x + grenade.Width/2, y + grenade.Height/2, explosionRadius, outerColor)
+
+        // Draw middle circle
+        drawCircle(screen, x + grenade.Width/2, y + grenade.Height/2, explosionRadius * 0.7, middleColor)
+
+        // Draw inner circle
+        drawCircle(screen, x + grenade.Width/2, y + grenade.Height/2, explosionRadius * 0.3, innerColor)
+
+        // Draw debris particles
+        debrisCount := 20
+        for i := 0; i < debrisCount; i++ {
+            angle := float64(i) * (2 * math.Pi / float64(debrisCount))
+            distance := explosionRadius * 0.8 * explosionProgress
+
+            debrisX := x + grenade.Width/2 + math.Cos(angle) * distance
+            debrisY := y + grenade.Height/2 + math.Sin(angle) * distance
+
+            debrisSize := 2.0 + float64(i%3)
+            debrisColor := color.RGBA{50, 100, 50, explosionAlpha}
+            ebitenutil.DrawRect(screen, debrisX, debrisY, debrisSize, debrisSize, debrisColor)
+        }
+    } else {
+        // Draw grenade body (circle)
+        grenadeColor := grenade.Color
+        drawCircle(screen, x + grenade.Width/2, y + grenade.Height/2, grenade.Width/2, grenadeColor)
+
+        // Draw grenade details
+        // Draw pin at the top
+        pinColor := color.RGBA{200, 200, 200, 255} // Silver
+        pinWidth := grenade.Width * 0.2
+        pinHeight := grenade.Height * 0.3
+        pinX := x + grenade.Width/2 - pinWidth/2
+        pinY := y - pinHeight * 0.7
+
+        // Draw pin
+        ebitenutil.DrawRect(screen, pinX, pinY, pinWidth, pinHeight, pinColor)
+
+        // Draw handle
+        handleColor := pinColor
+        handleWidth := grenade.Width * 0.4
+        handleHeight := grenade.Height * 0.1
+        handleX := x + grenade.Width/2
+        handleY := y - handleHeight
+
+        // Draw handle as a curved line
+        ebitenutil.DrawLine(screen, handleX, handleY, handleX + handleWidth, handleY, handleColor)
+
+        // Draw highlight on grenade for 3D effect
+        highlightColor := color.RGBA{
+            R: addColorValue(grenadeColor.R, 50),
+            G: addColorValue(grenadeColor.G, 50),
+            B: addColorValue(grenadeColor.B, 50),
+            A: 200,
+        }
+
+        // Draw highlight as a smaller circle
+        drawCircle(screen, x + grenade.Width*0.4, y + grenade.Height*0.4, grenade.Width*0.2, highlightColor)
     }
 }
 
@@ -912,12 +1034,16 @@ type Player struct {
     RocketReloadTime int // Total frames needed to reload rocket
     RocketReloadTimer int // Current rocket reload timer
     IsRocketReloading bool // Whether rocket launcher is reloading
+    // Grenade properties
+    GrenadeCount int  // Total grenades (limited to 5)
+    LastGrenadeFired int // Frame count of last grenade thrown
+    GrenadeFireRate int // Frames between grenade throws
     // Weapon state
     FacingRight bool   // Direction player is facing
     IsReloading bool   // Whether player is currently reloading
     ReloadTime  int    // Total frames needed to reload
     ReloadTimer int    // Current reload timer
-    CurrentWeapon int  // 0 = machine gun, 1 = rocket launcher
+    CurrentWeapon int  // 0 = machine gun, 1 = rocket launcher, 2 = grenades
     // Health and lives
     Health     int
     MaxHealth  int
@@ -958,6 +1084,10 @@ func NewPlayer(x, y float64) *Player {
         RocketReloadTime: 180, // 3 seconds at 60 FPS
         RocketReloadTimer: 0,
         IsRocketReloading: false,
+        // Initialize grenade properties
+        GrenadeCount:   5,     // Total grenades (limited to 5)
+        LastGrenadeFired: 0,
+        GrenadeFireRate: 45,   // 0.75 seconds between grenade throws
         // Initialize weapon state
         FacingRight:  true,
         IsReloading:  false,
@@ -1194,6 +1324,25 @@ type Rocket struct {
     ExplosionTimer int // Current explosion timer
 }
 
+// Grenade represents a grenade projectile fired by the player
+type Grenade struct {
+    X         float64
+    Y         float64
+    Width     float64
+    Height    float64
+    VelX      float64
+    VelY      float64
+    Active    bool
+    Color     color.RGBA
+    Lifetime  int
+    Damage    int    // Damage dealt to enemies
+    Exploded  bool   // Whether the grenade has exploded
+    BlastRadius float64 // Explosion radius
+    ExplosionTime int // Time the explosion lasts
+    ExplosionTimer int // Current explosion timer
+    Bounces   int    // Number of bounces before exploding
+}
+
 // NewRocket creates a new rocket entity
 func NewRocket(x, y, velX, velY float64) *Rocket {
     return &Rocket{
@@ -1259,6 +1408,81 @@ func (r *Rocket) SetVelY(vy float64) { r.VelY = vy }
 func (r *Rocket) GetVelX() float64   { return r.VelX }
 func (r *Rocket) GetVelY() float64   { return r.VelY }
 func (r *Rocket) IsCollidable() bool { return r.Active && !r.Exploded }
+
+// NewGrenade creates a new grenade entity
+func NewGrenade(x, y, velX, velY float64) *Grenade {
+    return &Grenade{
+        X:        x,
+        Y:        y,
+        Width:    10,
+        Height:   10,
+        VelX:     velX,
+        VelY:     velY,
+        Active:   true,
+        Color:    color.RGBA{0, 100, 0, 255}, // Dark green
+        Lifetime: 180, // Frames before grenade explodes if not bounced
+        Damage:   100, // Damage dealt to enemies
+        Exploded: false,
+        BlastRadius: 120.0, // Explosion radius (larger than rocket)
+        ExplosionTime: 30, // Explosion lasts for 0.5 seconds
+        ExplosionTimer: 0,
+        Bounces:  3, // Explode after 3 bounces
+    }
+}
+
+// Update updates the grenade state
+func (g *Grenade) Update() {
+    // If exploded, update explosion timer
+    if g.Exploded {
+        g.ExplosionTimer++
+        if g.ExplosionTimer >= g.ExplosionTime {
+            g.Active = false
+        }
+        return
+    }
+
+    // Update lifetime
+    g.Lifetime--
+    if g.Lifetime <= 0 {
+        g.Explode()
+    }
+}
+
+// Explode triggers the grenade explosion
+func (g *Grenade) Explode() {
+    g.Exploded = true
+    g.ExplosionTimer = 0
+    // Stop the grenade's movement
+    g.VelX = 0
+    g.VelY = 0
+}
+
+// HandleBounce decreases bounce counter and explodes if no bounces left
+func (g *Grenade) HandleBounce() {
+    g.Bounces--
+    if g.Bounces <= 0 {
+        g.Explode()
+    }
+}
+
+// Draw is a placeholder to satisfy the Entity interface
+// The actual drawing is handled by World.Draw
+func (g *Grenade) Draw(screen *ebiten.Image) {
+    // Drawing is handled by World.Draw
+}
+
+// Entity interface implementation
+func (g *Grenade) GetX() float64      { return g.X }
+func (g *Grenade) GetY() float64      { return g.Y }
+func (g *Grenade) GetWidth() float64  { return g.Width }
+func (g *Grenade) GetHeight() float64 { return g.Height }
+func (g *Grenade) SetX(x float64)     { g.X = x }
+func (g *Grenade) SetY(y float64)     { g.Y = y }
+func (g *Grenade) SetVelX(vx float64) { g.VelX = vx }
+func (g *Grenade) SetVelY(vy float64) { g.VelY = vy }
+func (g *Grenade) GetVelX() float64   { return g.VelX }
+func (g *Grenade) GetVelY() float64   { return g.VelY }
+func (g *Grenade) IsCollidable() bool { return g.Active && !g.Exploded }
 
 // Enemy represents an enemy character
 type Enemy struct {
