@@ -42,3 +42,5 @@ A 2D platformer game where you play as a bean character battling against enemy b
 - Physics-based projectiles with reduced gravity
 - Weapon switching system
 - Health and ammo management
+- Jump on enemies to defeat them with blood effects
+- Bounce off enemies when defeating them by jumping

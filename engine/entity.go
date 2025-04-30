@@ -411,24 +411,124 @@ func drawPlayer(screen *ebiten.Image, x, y float64, player *Player) {
     ebitenutil.DrawRect(screen, rightEyeX + (eyeSize-pupilSize)/2 + pupilOffset, eyeY + (eyeSize-pupilSize)/2, pupilSize, pupilSize, pupilColor)
 
     // Draw gun based on current weapon and angle
-    gunColor := color.RGBA{100, 100, 100, 255}
-    gunWidth := player.Width * 0.6
-    gunHeight := player.Height * 0.15
-
     // Calculate gun position at center of player
     gunCenterX := x + player.Width/2
     gunCenterY := y + player.Height * 0.4
 
     // Draw different gun based on current weapon
     if player.CurrentWeapon == 0 {
-        // Machine gun (thinner, longer)
-        drawRotatedRectangle(screen, gunCenterX, gunCenterY, gunWidth, gunHeight, player.GunAngle, gunColor)
+        // Machine gun (more detailed)
+        gunBarrelColor := color.RGBA{70, 70, 70, 255} // Dark gray
+        gunBodyColor := color.RGBA{100, 100, 100, 255} // Medium gray
+        gunGripColor := color.RGBA{139, 69, 19, 255} // Brown wooden grip
+
+        // Gun dimensions
+        gunBarrelWidth := player.Width * 0.7
+        gunBarrelHeight := player.Height * 0.08
+        gunBodyWidth := player.Width * 0.3
+        gunBodyHeight := player.Height * 0.15
+        gunGripWidth := player.Width * 0.15
+        gunGripHeight := player.Height * 0.2
+
+        // Draw gun barrel (longer, thinner part)
+        drawRotatedRectangle(screen, gunCenterX, gunCenterY, gunBarrelWidth, gunBarrelHeight, player.GunAngle, gunBarrelColor)
+
+        // Draw gun body (wider part behind barrel)
+        // Calculate position offset from center based on angle
+        bodyOffsetX := -math.Cos(player.GunAngle) * (gunBarrelWidth/2 - gunBodyWidth/2)
+        bodyOffsetY := -math.Sin(player.GunAngle) * (gunBarrelWidth/2 - gunBodyWidth/2)
+        drawRotatedRectangle(screen, gunCenterX + bodyOffsetX, gunCenterY + bodyOffsetY, gunBodyWidth, gunBodyHeight, player.GunAngle, gunBodyColor)
+
+        // Draw gun grip (handle)
+        gripOffsetX := -math.Cos(player.GunAngle) * (gunBarrelWidth/2 - gunBodyWidth/4)
+        gripOffsetY := -math.Sin(player.GunAngle) * (gunBarrelWidth/2 - gunBodyWidth/4)
+        // Grip is perpendicular to barrel
+        gripAngle := player.GunAngle + math.Pi/2
+        drawRotatedRectangle(screen, gunCenterX + gripOffsetX, gunCenterY + gripOffsetY, gunGripWidth, gunGripHeight, gripAngle, gunGripColor)
+
+        // Add a muzzle detail at the end of the barrel
+        muzzleColor := color.RGBA{50, 50, 50, 255} // Darker gray
+        muzzleWidth := gunBarrelHeight * 1.5
+        muzzleHeight := gunBarrelHeight * 1.2
+        muzzleOffsetX := math.Cos(player.GunAngle) * (gunBarrelWidth/2 - muzzleWidth/4)
+        muzzleOffsetY := math.Sin(player.GunAngle) * (gunBarrelWidth/2 - muzzleWidth/4)
+        drawRotatedRectangle(screen, gunCenterX + muzzleOffsetX, gunCenterY + muzzleOffsetY, muzzleWidth, muzzleHeight, player.GunAngle, muzzleColor)
+    } else if player.CurrentWeapon == 1 {
+        // Rocket launcher (more detailed)
+        launcherBodyColor := color.RGBA{60, 60, 60, 255} // Dark gray
+        launcherTubeColor := color.RGBA{80, 80, 80, 255} // Medium gray
+        launcherDetailColor := color.RGBA{40, 40, 40, 255} // Very dark gray
+
+        // Launcher dimensions
+        launcherWidth := player.Width * 0.6
+        launcherHeight := player.Height * 0.25
+        launcherTubeWidth := player.Width * 0.7
+        launcherTubeHeight := player.Height * 0.18
+
+        // Draw main launcher tube
+        drawRotatedRectangle(screen, gunCenterX, gunCenterY, launcherTubeWidth, launcherTubeHeight, player.GunAngle, launcherTubeColor)
+
+        // Draw launcher body (back part)
+        bodyOffsetX := -math.Cos(player.GunAngle) * (launcherTubeWidth/2 - launcherWidth/4)
+        bodyOffsetY := -math.Sin(player.GunAngle) * (launcherTubeWidth/2 - launcherWidth/4)
+        drawRotatedRectangle(screen, gunCenterX + bodyOffsetX, gunCenterY + bodyOffsetY, launcherWidth * 0.4, launcherHeight, player.GunAngle, launcherBodyColor)
+
+        // Draw sight on top
+        sightOffsetX := math.Cos(player.GunAngle + math.Pi/2) * (launcherHeight/4)
+        sightOffsetY := math.Sin(player.GunAngle + math.Pi/2) * (launcherHeight/4)
+        drawRotatedRectangle(screen, gunCenterX + sightOffsetX, gunCenterY + sightOffsetY, launcherWidth * 0.3, launcherHeight * 0.15, player.GunAngle, launcherDetailColor)
+
+        // Draw handle/grip
+        gripOffsetX := -math.Cos(player.GunAngle) * (launcherWidth/4)
+        gripOffsetY := -math.Sin(player.GunAngle) * (launcherWidth/4)
+        gripAngle := player.GunAngle + math.Pi/2
+        drawRotatedRectangle(screen, gunCenterX + gripOffsetX, gunCenterY + gripOffsetY, launcherHeight * 0.2, launcherHeight * 0.5, gripAngle, launcherDetailColor)
+
+        // Draw rocket in tube if loaded
+        if player.CurrentRocket > 0 && !player.IsRocketReloading {
+            rocketColor := color.RGBA{180, 70, 20, 255} // Orange-red
+            rocketWidth := launcherTubeWidth * 0.5
+            rocketHeight := launcherTubeHeight * 0.7
+            rocketOffsetX := math.Cos(player.GunAngle) * (launcherTubeWidth/4)
+            rocketOffsetY := math.Sin(player.GunAngle) * (launcherTubeWidth/4)
+            drawRotatedRectangle(screen, gunCenterX + rocketOffsetX, gunCenterY + rocketOffsetY, rocketWidth, rocketHeight, player.GunAngle, rocketColor)
+        }
     } else {
-        // Rocket launcher (thicker, shorter)
-        rocketLauncherColor := color.RGBA{80, 80, 80, 255}
-        rocketLauncherWidth := player.Width * 0.5
-        rocketLauncherHeight := player.Height * 0.25
-        drawRotatedRectangle(screen, gunCenterX, gunCenterY, rocketLauncherWidth, rocketLauncherHeight, player.GunAngle, rocketLauncherColor)
+        // Grenade launcher/thrower
+        launcherColor := color.RGBA{50, 100, 50, 255} // Green
+        gripColor := color.RGBA{70, 50, 30, 255} // Brown
+
+        // Launcher dimensions
+        launcherWidth := player.Width * 0.4
+        launcherHeight := player.Height * 0.2
+        gripWidth := player.Width * 0.15
+        gripHeight := player.Height * 0.25
+
+        // Draw launcher body (short, wide tube)
+        drawRotatedRectangle(screen, gunCenterX, gunCenterY, launcherWidth, launcherHeight, player.GunAngle, launcherColor)
+
+        // Draw grip
+        gripOffsetX := -math.Cos(player.GunAngle) * (launcherWidth/4)
+        gripOffsetY := -math.Sin(player.GunAngle) * (launcherWidth/4)
+        gripAngle := player.GunAngle + math.Pi/2
+        drawRotatedRectangle(screen, gunCenterX + gripOffsetX, gunCenterY + gripOffsetY, gripWidth, gripHeight, gripAngle, gripColor)
+
+        // Draw grenade in launcher if available
+        if player.GrenadeCount > 0 {
+            grenadeColor := color.RGBA{0, 100, 0, 255} // Dark green
+            grenadeSize := launcherHeight * 0.8
+            grenadeOffsetX := math.Cos(player.GunAngle) * (launcherWidth/2 - grenadeSize/2)
+            grenadeOffsetY := math.Sin(player.GunAngle) * (launcherWidth/2 - grenadeSize/2)
+
+            // Draw grenade as a circle
+            drawCircle(screen, gunCenterX + grenadeOffsetX, gunCenterY + grenadeOffsetY, grenadeSize/2, grenadeColor)
+
+            // Draw grenade pin
+            pinColor := color.RGBA{200, 200, 200, 255} // Silver
+            pinOffsetX := math.Cos(player.GunAngle + math.Pi/4) * (grenadeSize/2)
+            pinOffsetY := math.Sin(player.GunAngle + math.Pi/4) * (grenadeSize/2)
+            drawRotatedRectangle(screen, gunCenterX + grenadeOffsetX + pinOffsetX, gunCenterY + grenadeOffsetY + pinOffsetY, grenadeSize * 0.2, grenadeSize * 0.1, player.GunAngle, pinColor)
+        }
     }
 
     // Draw legs
@@ -1683,6 +1783,18 @@ func (f *Flag) SetVelY(vy float64) { /* Flags don't move */ }
 func (f *Flag) GetVelX() float64   { return 0 }
 func (f *Flag) GetVelY() float64   { return 0 }
 func (f *Flag) IsCollidable() bool { return f.Active && !f.Collected }
+
+// BloodParticle represents a blood particle effect
+type BloodParticle struct {
+    X         float64
+    Y         float64
+    VelX      float64
+    VelY      float64
+    Radius    float64
+    Color     color.RGBA
+    Lifetime  int
+    Active    bool
+}
 
 // Platform represents a solid platform
 type Platform struct {

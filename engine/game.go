@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -21,6 +22,7 @@ type Game struct {
 	grenades       []*Grenade
 	enemies        []*Enemy
 	flag           *Flag
+	bloodParticles []*BloodParticle
 	gravity        float64
 	debug          bool
 	frameCount     int
@@ -46,6 +48,7 @@ func NewGame(width, height int) (*Game, error) {
 		rockets:        make([]*Rocket, 0),
 		grenades:       make([]*Grenade, 0),
 		enemies:        make([]*Enemy, 0),
+		bloodParticles: make([]*BloodParticle, 0),
 		frameCount:     0,
 		enemySpawnTimer: 300, // Spawn first enemy after 5 seconds
 		levelComplete:  false,
@@ -357,6 +360,81 @@ func (g *Game) SpawnEnemy() {
 	g.world.AddEntity(enemy)
 }
 
+// CreateBloodEffect creates a blood effect at the specified position
+func (g *Game) CreateBloodEffect(x, y float64) {
+	// Create multiple blood particles with random velocities
+	particleCount := 20
+	for i := 0; i < particleCount; i++ {
+		// Random velocity
+		angle := rand.Float64() * 2 * math.Pi
+		speed := 1.0 + rand.Float64()*3.0
+		velX := math.Cos(angle) * speed
+		velY := math.Sin(angle) * speed - 2.0 // Initial upward velocity
+
+		// Random radius
+		radius := 2.0 + rand.Float64()*3.0
+
+		// Random lifetime
+		lifetime := 30 + rand.Intn(30)
+
+		// Create blood particle
+		particle := &BloodParticle{
+			X:        x,
+			Y:        y,
+			VelX:     velX,
+			VelY:     velY,
+			Radius:   radius,
+			Color:    color.RGBA{200, 0, 0, 255}, // Dark red
+			Lifetime: lifetime,
+			Active:   true,
+		}
+
+		// Add particle to game
+		g.bloodParticles = append(g.bloodParticles, particle)
+	}
+}
+
+// cleanupBloodParticles removes inactive blood particles
+func (g *Game) cleanupBloodParticles() {
+	activeParticles := make([]*BloodParticle, 0)
+	for _, particle := range g.bloodParticles {
+		if particle.Active {
+			activeParticles = append(activeParticles, particle)
+		}
+	}
+	g.bloodParticles = activeParticles
+}
+
+// updateBloodParticles updates all blood particles
+func (g *Game) updateBloodParticles() {
+	for _, particle := range g.bloodParticles {
+		// Update position
+		particle.X += particle.VelX
+		particle.Y += particle.VelY
+
+		// Apply gravity
+		particle.VelY += g.gravity * 0.2
+
+		// Update lifetime
+		particle.Lifetime--
+		if particle.Lifetime <= 0 {
+			particle.Active = false
+		}
+
+		// Fade out color as lifetime decreases
+		if particle.Lifetime < 15 {
+			alpha := uint8(float64(particle.Lifetime) / 15.0 * 255.0)
+			particle.Color.A = alpha
+		}
+	}
+}
+
+// drawBloodParticle draws a blood particle
+func drawBloodParticle(screen *ebiten.Image, x, y float64, particle *BloodParticle) {
+	// Draw blood particle as a circle
+	drawCircle(screen, x, y, particle.Radius, particle.Color)
+}
+
 // Update updates the game state
 func (g *Game) Update() error {
 	// Increment frame counter
@@ -389,11 +467,15 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// Clean up inactive bullets, rockets, grenades, and enemies
+	// Update blood particles
+	g.updateBloodParticles()
+
+	// Clean up inactive bullets, rockets, grenades, enemies, and blood particles
 	g.cleanupBullets()
 	g.cleanupRockets()
 	g.cleanupGrenades()
 	g.cleanupEnemies()
+	g.cleanupBloodParticles()
 
 	// Check for bullet-enemy collisions
 	g.checkBulletEnemyCollisions()
@@ -504,6 +586,10 @@ func (g *Game) checkBulletEnemyCollisions() {
 
 				// Bullet hit enemy
 				enemy.TakeDamage(bullet.Damage)
+
+				// Create blood effect
+				g.CreateBloodEffect(enemy.X+enemy.Width/2, enemy.Y+enemy.Height/2)
+
 				bullet.Active = false
 				break
 			}
@@ -524,8 +610,25 @@ func (g *Game) checkPlayerEnemyCollisions() {
 			g.player.Y < enemy.Y+enemy.Height &&
 			g.player.Y+g.player.Height > enemy.Y {
 
-			// Enemy hit player
-			g.player.TakeDamage(10) // Enemy deals 10 damage
+			// Check if player is landing on top of the enemy
+			playerBottom := g.player.Y + g.player.Height
+			enemyTop := enemy.Y
+			playerFalling := g.player.VelY > 0
+
+			// If player's bottom is near the enemy's top and player is falling, kill the enemy
+			if playerBottom < enemyTop+10 && playerFalling {
+				// Kill the enemy
+				enemy.TakeDamage(enemy.MaxHealth) // Ensure enemy dies
+
+				// Create blood effect
+				g.CreateBloodEffect(enemy.X+enemy.Width/2, enemy.Y+enemy.Height/2)
+
+				// Make player bounce
+				g.player.VelY = -8.0 // Bounce upward
+			} else {
+				// Enemy hit player
+				g.player.TakeDamage(10) // Enemy deals 10 damage
+			}
 			break
 		}
 	}
@@ -722,6 +825,10 @@ func (g *Game) checkRocketEnemyCollisions() {
 
 				// Rocket hit enemy
 				enemy.TakeDamage(rocket.Damage)
+
+				// Create blood effect
+				g.CreateBloodEffect(enemy.X+enemy.Width/2, enemy.Y+enemy.Height/2)
+
 				rocket.Explode()
 				break
 			}
@@ -749,6 +856,10 @@ func (g *Game) checkGrenadeEnemyCollisions() {
 
 				// Grenade hit enemy directly - explode
 				enemy.TakeDamage(grenade.Damage / 2) // Direct hit does half damage
+
+				// Create blood effect
+				g.CreateBloodEffect(enemy.X+enemy.Width/2, enemy.Y+enemy.Height/2)
+
 				grenade.Explode()
 				break
 			}
@@ -793,6 +904,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw all entities
 	g.world.Draw(screen)
 
+	// Draw blood particles
+	g.drawBloodParticles(screen)
+
 	// Draw UI elements
 	g.drawUI(screen)
 
@@ -802,6 +916,28 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw debug info
 	if g.debug {
 		g.drawDebugInfo(screen)
+	}
+}
+
+// drawBloodParticles draws all blood particles
+func (g *Game) drawBloodParticles(screen *ebiten.Image) {
+	camera := g.world.GetCamera()
+	for _, particle := range g.bloodParticles {
+		if !particle.Active {
+			continue
+		}
+
+		// Calculate screen position with camera offset
+		x := particle.X - camera.X
+		y := particle.Y
+
+		// Skip particles that are off-screen
+		if x+particle.Radius*2 < 0 || x-particle.Radius*2 > float64(camera.Width) {
+			continue
+		}
+
+		// Draw the particle
+		drawBloodParticle(screen, x, y, particle)
 	}
 }
 
@@ -1150,5 +1286,14 @@ func (g *Game) drawDebugInfo(screen *ebiten.Image) {
 
 // Layout implements ebiten.Game's Layout
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	// Update the game's dimensions to match the window size
+	g.width = outsideWidth
+	g.height = outsideHeight
+
+	// Update the camera's dimensions to match the new window size
+	camera := g.world.GetCamera()
+	camera.Width = outsideWidth
+	camera.Height = outsideHeight
+
 	return g.width, g.height
 }
