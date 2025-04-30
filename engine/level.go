@@ -24,6 +24,10 @@ type PlatformData struct {
 	Y      float64 `json:"y"`
 	Width  float64 `json:"width"`
 	Height float64 `json:"height"`
+	Type   string  `json:"type"`   // "normal", "small", "moving", "spike"
+	MoveX  float64 `json:"moveX"`  // For moving platforms: horizontal movement distance
+	MoveY  float64 `json:"moveY"`  // For moving platforms: vertical movement distance
+	Speed  float64 `json:"speed"`  // For moving platforms: movement speed
 }
 
 // EnemySpawnData represents an enemy spawn point
@@ -59,11 +63,20 @@ func NewLevel(name string) *Level {
 
 // AddPlatform adds a platform to the level
 func (l *Level) AddPlatform(x, y, width, height float64) {
+	l.AddPlatformWithType(x, y, width, height, "normal", 0, 0, 0)
+}
+
+// AddPlatformWithType adds a platform to the level with a specific type and movement parameters
+func (l *Level) AddPlatformWithType(x, y, width, height float64, platformType string, moveX, moveY, speed float64) {
 	platform := PlatformData{
 		X:      x,
 		Y:      y,
 		Width:  width,
 		Height: height,
+		Type:   platformType,
+		MoveX:  moveX,
+		MoveY:  moveY,
+		Speed:  speed,
 	}
 	l.Platforms = append(l.Platforms, platform)
 }
@@ -155,60 +168,60 @@ func GetLevelList(directory string) ([]string, error) {
 // CreateDefaultLevel creates the default level (same as the original hardcoded level)
 func CreateDefaultLevel(width, height int) *Level {
 	level := NewLevel("Default Level")
-	
+
 	// Set player start position
 	level.SetPlayerStart(100, 100)
-	
+
 	// Create a much wider ground platform to allow for side-scrolling
 	groundWidth := float64(width * 5) // 5 times the screen width
 	level.AddPlatform(0, float64(height-50), groundWidth, 50)
-	
+
 	// Create platforms across the wider level
 	// First screen
 	level.AddPlatform(100, 400, 200, 20)
 	level.AddPlatform(400, 300, 200, 20)
 	level.AddPlatform(200, 200, 200, 20)
-	
+
 	// Second screen
 	level.AddPlatform(float64(width) + 100, 400, 200, 20)
 	level.AddPlatform(float64(width) + 400, 300, 200, 20)
-	
+
 	// Third screen
 	level.AddPlatform(float64(width*2) + 100, 350, 200, 20)
 	level.AddPlatform(float64(width*2) + 400, 250, 200, 20)
-	
+
 	// Fourth screen
 	level.AddPlatform(float64(width*3) + 100, 300, 200, 20)
 	level.AddPlatform(float64(width*3) + 400, 200, 200, 20)
-	
+
 	// Add some vertical platforms for variety
 	level.AddPlatform(float64(width*4) - 100, 350, 50, 200)
-	
+
 	// Create finish flag at the end of the level
 	flagX := float64(width*4) + 100 // Place flag at the far right of the level
 	flagY := float64(height - 114)  // Place flag on the ground
 	level.SetFlagPosition(flagX, flagY)
-	
+
 	// Add a platform under the flag
 	level.AddPlatform(flagX - 50, flagY + 64, 150, 20)
-	
+
 	// Add enemy spawn points
 	// First screen
 	level.AddEnemySpawn(300, 350, "kidney")
 	level.AddEnemySpawn(500, 250, "navy")
 	level.AddEnemySpawn(300, 150, "kidney")
-	
+
 	// Second screen
 	level.AddEnemySpawn(float64(width) + 200, 350, "navy")
 	level.AddEnemySpawn(float64(width) + 500, 250, "kidney")
-	
+
 	// Third screen
 	level.AddEnemySpawn(float64(width*2) + 200, 300, "navy")
 	level.AddEnemySpawn(float64(width*2) + 500, 200, "kidney")
-	
+
 	// Fourth screen
 	level.AddEnemySpawn(float64(width*3) + 200, 250, "navy")
 	level.AddEnemySpawn(float64(width*3) + 500, 150, "kidney")
-	
+
 	return level
 }

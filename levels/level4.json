@@ -5,79 +5,131 @@
       "x": 0,
       "y": 550,
       "width": 4000,
-      "height": 50
+      "height": 50,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 100,
       "y": 400,
       "width": 200,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 400,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 600,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 840,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 1120,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 1440,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 1800,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 2200,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 2640,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 3120,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 3640,
       "y": 400,
       "width": 80,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 3200,
       "y": 400,
       "width": 200,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     }
   ],
   "enemySpawns": [

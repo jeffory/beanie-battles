@@ -5,19 +5,31 @@
       "x": 0,
       "y": 550,
       "width": 4000,
-      "height": 50
+      "height": 50,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 100,
       "y": 400,
       "width": 2400,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 2550,
       "y": 400,
       "width": 150,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     }
   ],
   "enemySpawns": [

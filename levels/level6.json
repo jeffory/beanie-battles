@@ -5,97 +5,161 @@
       "x": 0,
       "y": 550,
       "width": 4000,
-      "height": 50
+      "height": 50,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 100,
       "y": 400,
       "width": 200,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 400,
       "y": 350,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 600,
       "y": 300,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 800,
       "y": 350,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 1000,
       "y": 300,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 300,
       "y": 250,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 500,
       "y": 200,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 700,
       "y": 250,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 900,
       "y": 200,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 1100,
       "y": 250,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 400,
       "y": 150,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 600,
       "y": 100,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 800,
       "y": 150,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 1000,
       "y": 100,
       "width": 100,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     },
     {
       "x": 1200,
       "y": 150,
       "width": 200,
-      "height": 20
+      "height": 20,
+      "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
     }
   ],
   "enemySpawns": [

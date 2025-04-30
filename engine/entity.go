@@ -168,9 +168,16 @@ func (w *World) checkCollision(a, b Entity) bool {
 
 // resolveCollision handles collision response
 func (w *World) resolveCollision(a, b Entity) {
-    // Check if entity a is a player and b is a platform
+    // Check if entity a is a player
     player, isPlayer := a.(*Player)
+
+    // Check if entity b is any type of platform
     _, isPlatform := b.(*Platform)
+    movingPlatform, isMovingPlatform := b.(*MovingPlatform)
+    spikePit, isSpikePit := b.(*SpikePit)
+
+    // Combined platform check
+    isAnyPlatform := isPlatform || isMovingPlatform || isSpikePit
 
     // Check if entity a is a bullet
     bullet, isBullet := a.(*Bullet)
@@ -181,8 +188,8 @@ func (w *World) resolveCollision(a, b Entity) {
     // Check if entity a is an enemy
     enemy, isEnemy := a.(*Enemy)
 
-    // Handle player vs platform collision
-    if isPlayer && isPlatform {
+    // Handle player vs any platform collision
+    if isPlayer && isAnyPlatform {
         // Calculate overlap
         overlapX := min(a.GetX()+a.GetWidth(), b.GetX()+b.GetWidth()) - max(a.GetX(), b.GetX())
         overlapY := min(a.GetY()+a.GetHeight(), b.GetY()+b.GetHeight()) - max(a.GetY(), b.GetY())
@@ -196,6 +203,11 @@ func (w *World) resolveCollision(a, b Entity) {
                 a.SetX(b.GetX() + b.GetWidth())
             }
             a.SetVelX(0)
+
+            // If it's a spike pit, damage the player
+            if isSpikePit {
+                player.TakeDamage(spikePit.Damage)
+            }
         } else {
             // Vertical collision
             if a.GetY() < b.GetY() {
@@ -203,16 +215,27 @@ func (w *World) resolveCollision(a, b Entity) {
                 a.SetY(b.GetY() - a.GetHeight())
                 a.SetVelY(0)
                 player.OnGround = true
+
+                // If it's a moving platform, make the player move with the platform
+                if isMovingPlatform {
+                    // Apply platform's velocity to player
+                    player.X += movingPlatform.GetVelX()
+                }
             } else {
                 // Collision from below
                 a.SetY(b.GetY() + b.GetHeight())
                 a.SetVelY(0)
+
+                // If it's a spike pit, damage the player
+                if isSpikePit {
+                    player.TakeDamage(spikePit.Damage)
+                }
             }
         }
     }
 
-    // Handle enemy vs platform collision
-    if isEnemy && isPlatform {
+    // Handle enemy vs any platform collision
+    if isEnemy && isAnyPlatform {
         // Calculate overlap
         overlapX := min(a.GetX()+a.GetWidth(), b.GetX()+b.GetWidth()) - max(a.GetX(), b.GetX())
         overlapY := min(a.GetY()+a.GetHeight(), b.GetY()+b.GetHeight()) - max(a.GetY(), b.GetY())
@@ -243,14 +266,14 @@ func (w *World) resolveCollision(a, b Entity) {
         }
     }
 
-    // Handle bullet vs platform collision
-    if isBullet && isPlatform {
+    // Handle bullet vs any platform collision
+    if isBullet && isAnyPlatform {
         // Deactivate bullet when it hits a platform
         bullet.Active = false
     }
 
-    // Handle grenade vs platform collision
-    if isGrenade && isPlatform {
+    // Handle grenade vs any platform collision
+    if isGrenade && isAnyPlatform {
         // Calculate overlap
         overlapX := min(a.GetX()+a.GetWidth(), b.GetX()+b.GetWidth()) - max(a.GetX(), b.GetX())
         overlapY := min(a.GetY()+a.GetHeight(), b.GetY()+b.GetHeight()) - max(a.GetY(), b.GetY())
@@ -306,6 +329,12 @@ func (w *World) Draw(screen *ebiten.Image, editorMode bool) {
         } else if platform, ok := e.(*Platform); ok {
             // Draw platform with texture
             drawPlatform(screen, x, y, platform)
+        } else if movingPlatform, ok := e.(*MovingPlatform); ok {
+            // Draw moving platform with texture
+            drawPlatform(screen, x, y, &movingPlatform.Platform)
+        } else if spikePit, ok := e.(*SpikePit); ok {
+            // Draw spike pit with texture
+            drawPlatform(screen, x, y, &spikePit.Platform)
         } else if bullet, ok := e.(*Bullet); ok {
             if bullet.Active {
                 // Draw bullet with trail effect
@@ -899,6 +928,39 @@ func drawCircle(screen *ebiten.Image, centerX, centerY, radius float64, clr colo
     }
 }
 
+// drawHeart draws a heart shape at the specified position
+func drawHeart(screen *ebiten.Image, centerX, centerY, size float64, clr color.RGBA) {
+    // Draw two circles for the top of the heart
+    radius := size / 4
+    leftCenterX := centerX - radius
+    rightCenterX := centerX + radius
+    topCenterY := centerY - radius / 2
+
+    // Draw the two circles
+    drawCircle(screen, leftCenterX, topCenterY, radius, clr)
+    drawCircle(screen, rightCenterX, topCenterY, radius, clr)
+
+    // Draw the bottom triangle part of the heart
+    // Define the triangle points
+    topLeftX := leftCenterX
+    topLeftY := topCenterY
+    topRightX := rightCenterX
+    bottomY := centerY + size / 2
+
+    // Fill the triangle
+    for y := topLeftY; y <= bottomY; y += 0.5 {
+        // Calculate the width of the triangle at this y position
+        progress := (y - topLeftY) / (bottomY - topLeftY)
+        width := (1 - progress) * (topRightX - topLeftX) + progress * 0
+
+        // Calculate the x position of the left edge of the triangle at this y position
+        leftX := centerX - width / 2
+
+        // Draw a horizontal line
+        ebitenutil.DrawLine(screen, leftX, y, leftX + width, y, clr)
+    }
+}
+
 // drawGrass draws animated grass blades on top of a platform
 func drawGrass(screen *ebiten.Image, x, y float64, width float64, timer int) {
     // Base grass color
@@ -948,6 +1010,20 @@ func drawGrass(screen *ebiten.Image, x, y float64, width float64, timer int) {
 
 // drawPlatform draws a platform with texture
 func drawPlatform(screen *ebiten.Image, x, y float64, platform *Platform) {
+    switch platform.Type {
+    case "small":
+        drawSmallPlatform(screen, x, y, platform)
+    case "spike":
+        drawSpikePlatform(screen, x, y, platform)
+    case "moving":
+        drawMovingPlatform(screen, x, y, platform)
+    default: // "normal" or any other type
+        drawNormalPlatform(screen, x, y, platform)
+    }
+}
+
+// drawNormalPlatform draws a normal platform with grass and dirt texture
+func drawNormalPlatform(screen *ebiten.Image, x, y float64, platform *Platform) {
     // Main platform body
     ebitenutil.DrawRect(screen, x, y, platform.Width, platform.Height, platform.Color)
 
@@ -975,6 +1051,78 @@ func drawPlatform(screen *ebiten.Image, x, y float64, platform *Platform) {
             A: platform.Color.A,
         }
         ebitenutil.DrawRect(screen, x, y, platform.Width, 2, highlightColor)
+    }
+}
+
+// drawSmallPlatform draws a small platform with minimal texture
+func drawSmallPlatform(screen *ebiten.Image, x, y float64, platform *Platform) {
+    // Main platform body
+    ebitenutil.DrawRect(screen, x, y, platform.Width, platform.Height, platform.Color)
+
+    // Add highlight on top
+    highlightColor := color.RGBA{
+        R: addColorValue(platform.Color.R, 50),
+        G: addColorValue(platform.Color.G, 50),
+        B: addColorValue(platform.Color.B, 50),
+        A: platform.Color.A,
+    }
+    ebitenutil.DrawRect(screen, x, y, platform.Width, 2, highlightColor)
+}
+
+// drawMovingPlatform draws a moving platform with indicators of movement
+func drawMovingPlatform(screen *ebiten.Image, x, y float64, platform *Platform) {
+    // Main platform body
+    ebitenutil.DrawRect(screen, x, y, platform.Width, platform.Height, platform.Color)
+
+    // Add highlight on top
+    highlightColor := color.RGBA{
+        R: addColorValue(platform.Color.R, 50),
+        G: addColorValue(platform.Color.G, 50),
+        B: addColorValue(platform.Color.B, 50),
+        A: platform.Color.A,
+    }
+    ebitenutil.DrawRect(screen, x, y, platform.Width, 2, highlightColor)
+
+    // Add movement indicators (arrows or lines)
+    indicatorColor := color.RGBA{255, 255, 255, 200} // White with transparency
+
+    // Draw movement indicators based on platform's movement timer
+    arrowSize := 8.0
+    arrowSpacing := 16.0
+    numArrows := int(platform.Width / arrowSpacing)
+
+    for i := 0; i < numArrows; i++ {
+        arrowX := x + float64(i)*arrowSpacing + arrowSpacing/2
+        arrowY := y + platform.Height/2
+
+        // Draw a simple arrow or line
+        ebitenutil.DrawRect(screen, arrowX-arrowSize/2, arrowY-1, arrowSize, 2, indicatorColor)
+    }
+}
+
+// drawSpikePlatform draws a platform with spikes on top
+func drawSpikePlatform(screen *ebiten.Image, x, y float64, platform *Platform) {
+    // Main platform body (slightly smaller to make room for spikes)
+    platformBodyHeight := platform.Height * 0.7
+    ebitenutil.DrawRect(screen, x, y + platform.Height - platformBodyHeight, platform.Width, platformBodyHeight, platform.Color)
+
+    // Draw spikes on top
+    spikeColor := color.RGBA{200, 0, 0, 255} // Red
+    spikeWidth := 8.0
+    spikeHeight := platform.Height * 0.3
+    numSpikes := int(platform.Width / spikeWidth)
+
+    for i := 0; i < numSpikes; i++ {
+        spikeX := x + float64(i)*spikeWidth
+        spikeY := y + platform.Height - platformBodyHeight
+
+        // Draw triangle spike
+        // Base of triangle
+        ebitenutil.DrawLine(screen, spikeX, spikeY, spikeX + spikeWidth, spikeY, spikeColor)
+        // Left side of triangle
+        ebitenutil.DrawLine(screen, spikeX, spikeY, spikeX + spikeWidth/2, spikeY - spikeHeight, spikeColor)
+        // Right side of triangle
+        ebitenutil.DrawLine(screen, spikeX + spikeWidth, spikeY, spikeX + spikeWidth/2, spikeY - spikeHeight, spikeColor)
     }
 }
 
@@ -2011,12 +2159,31 @@ type BloodParticle struct {
 
 // Platform represents a solid platform
 type Platform struct {
-    X              float64
-    Y              float64
-    Width          float64
-    Height         float64
-    Color          color.RGBA
-    GrassWaveTimer int     // Timer for grass waving animation
+	X              float64
+	Y              float64
+	Width          float64
+	Height         float64
+	Color          color.RGBA
+	GrassWaveTimer int     // Timer for grass waving animation
+	Type           string  // "normal", "small", "moving", "spike"
+}
+
+// MovingPlatform represents a platform that moves
+type MovingPlatform struct {
+	Platform                // Embed Platform struct
+	StartX          float64 // Starting X position
+	StartY          float64 // Starting Y position
+	MoveX           float64 // Horizontal movement distance
+	MoveY           float64 // Vertical movement distance
+	Speed           float64 // Movement speed
+	MovementTimer   float64 // Timer for movement animation
+	MovingForward   bool    // Direction of movement
+}
+
+// SpikePit represents a platform with spikes that damages the player
+type SpikePit struct {
+	Platform            // Embed Platform struct
+	Damage       int    // Damage dealt to player on contact
 }
 
 // NewPlatform creates a new platform entity
@@ -2028,16 +2195,90 @@ func NewPlatform(x, y, width, height float64) *Platform {
         Height:         height,
         Color:          color.RGBA{0, 255, 0, 255}, // Green
         GrassWaveTimer: 0,
+        Type:           "normal",
+    }
+}
+
+// NewSmallPlatform creates a new small platform entity
+func NewSmallPlatform(x, y float64) *Platform {
+    return &Platform{
+        X:              x,
+        Y:              y,
+        Width:          50,
+        Height:         10,
+        Color:          color.RGBA{0, 200, 0, 255}, // Slightly darker green
+        GrassWaveTimer: 0,
+        Type:           "small",
+    }
+}
+
+// NewMovingPlatform creates a new moving platform entity
+func NewMovingPlatform(x, y, width, height, moveX, moveY, speed float64) *MovingPlatform {
+    return &MovingPlatform{
+        Platform: Platform{
+            X:              x,
+            Y:              y,
+            Width:          width,
+            Height:         height,
+            Color:          color.RGBA{0, 0, 255, 255}, // Blue
+            GrassWaveTimer: 0,
+            Type:           "moving",
+        },
+        StartX:        x,
+        StartY:        y,
+        MoveX:         moveX,
+        MoveY:         moveY,
+        Speed:         speed,
+        MovementTimer: 0,
+        MovingForward: true,
+    }
+}
+
+// NewSpikePit creates a new spike pit entity
+func NewSpikePit(x, y, width, height float64) *SpikePit {
+    return &SpikePit{
+        Platform: Platform{
+            X:              x,
+            Y:              y,
+            Width:          width,
+            Height:         height,
+            Color:          color.RGBA{255, 0, 0, 255}, // Red
+            GrassWaveTimer: 0,
+            Type:           "spike",
+        },
+        Damage: 20, // Default damage
     }
 }
 
 // Update updates the platform state
 func (p *Platform) Update() {
-    // Update grass wave timer
-    p.GrassWaveTimer++
-    if p.GrassWaveTimer > 120 { // Reset after 2 seconds (assuming 60 FPS)
-        p.GrassWaveTimer = 0
-    }
+	// Update grass wave timer
+	p.GrassWaveTimer++
+	if p.GrassWaveTimer > 120 { // Reset after 2 seconds (assuming 60 FPS)
+		p.GrassWaveTimer = 0
+	}
+}
+
+// Update updates the moving platform state
+func (mp *MovingPlatform) Update() {
+	// Update embedded platform
+	mp.Platform.Update()
+
+	// Update movement
+	mp.MovementTimer += mp.Speed
+
+	// Calculate movement progress (0.0 to 1.0)
+	progress := math.Sin(mp.MovementTimer * 0.05) * 0.5 + 0.5
+
+	// Update position based on movement parameters
+	mp.X = mp.StartX + mp.MoveX * progress
+	mp.Y = mp.StartY + mp.MoveY * progress
+}
+
+// Update updates the spike pit state
+func (sp *SpikePit) Update() {
+	// Update embedded platform
+	sp.Platform.Update()
 }
 
 // Draw is a placeholder to satisfy the Entity interface
@@ -2058,3 +2299,53 @@ func (p *Platform) SetVelY(vy float64) { /* Platforms don't move */ }
 func (p *Platform) GetVelX() float64   { return 0 }
 func (p *Platform) GetVelY() float64   { return 0 }
 func (p *Platform) IsCollidable() bool { return true }
+
+// Draw is a placeholder to satisfy the Entity interface for MovingPlatform
+// The actual drawing is handled by World.Draw
+func (mp *MovingPlatform) Draw(screen *ebiten.Image) {
+    // Drawing is handled by World.Draw
+}
+
+// Entity interface implementation for MovingPlatform
+func (mp *MovingPlatform) GetX() float64      { return mp.X }
+func (mp *MovingPlatform) GetY() float64      { return mp.Y }
+func (mp *MovingPlatform) GetWidth() float64  { return mp.Width }
+func (mp *MovingPlatform) GetHeight() float64 { return mp.Height }
+func (mp *MovingPlatform) SetX(x float64)     { mp.X = x }
+func (mp *MovingPlatform) SetY(y float64)     { mp.Y = y }
+func (mp *MovingPlatform) SetVelX(vx float64) { /* Moving platforms have their own movement logic */ }
+func (mp *MovingPlatform) SetVelY(vy float64) { /* Moving platforms have their own movement logic */ }
+func (mp *MovingPlatform) GetVelX() float64   { 
+    // Calculate velocity based on position change
+    if mp.MoveX == 0 {
+        return 0
+    }
+    return (mp.X - mp.StartX) / mp.MoveX * mp.Speed
+}
+func (mp *MovingPlatform) GetVelY() float64   { 
+    // Calculate velocity based on position change
+    if mp.MoveY == 0 {
+        return 0
+    }
+    return (mp.Y - mp.StartY) / mp.MoveY * mp.Speed
+}
+func (mp *MovingPlatform) IsCollidable() bool { return true }
+
+// Draw is a placeholder to satisfy the Entity interface for SpikePit
+// The actual drawing is handled by World.Draw
+func (sp *SpikePit) Draw(screen *ebiten.Image) {
+    // Drawing is handled by World.Draw
+}
+
+// Entity interface implementation for SpikePit
+func (sp *SpikePit) GetX() float64      { return sp.X }
+func (sp *SpikePit) GetY() float64      { return sp.Y }
+func (sp *SpikePit) GetWidth() float64  { return sp.Width }
+func (sp *SpikePit) GetHeight() float64 { return sp.Height }
+func (sp *SpikePit) SetX(x float64)     { sp.X = x }
+func (sp *SpikePit) SetY(y float64)     { sp.Y = y }
+func (sp *SpikePit) SetVelX(vx float64) { /* Spike pits don't move */ }
+func (sp *SpikePit) SetVelY(vy float64) { /* Spike pits don't move */ }
+func (sp *SpikePit) GetVelX() float64   { return 0 }
+func (sp *SpikePit) GetVelY() float64   { return 0 }
+func (sp *SpikePit) IsCollidable() bool { return true }

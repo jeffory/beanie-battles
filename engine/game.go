@@ -47,6 +47,10 @@ type Game struct {
 	editorTool     string // "platform", "enemy", "flag", "player"
 	editorPlatformWidth float64
 	editorPlatformHeight float64
+	editorPlatformType string // "normal", "small", "moving", "spike"
+	editorMovingPlatformMoveX float64
+	editorMovingPlatformMoveY float64
+	editorMovingPlatformSpeed float64
 	editorEnemyType string
 	selectedEntity interface{}
 	dragging       bool
@@ -87,6 +91,10 @@ func NewGame(width, height int) (*Game, error) {
 		editorTool:     "platform",
 		editorPlatformWidth: 200,
 		editorPlatformHeight: 20,
+		editorPlatformType: "normal",
+		editorMovingPlatformMoveX: 100,
+		editorMovingPlatformMoveY: 0,
+		editorMovingPlatformSpeed: 1.0,
 		editorEnemyType: "kidney",
 		dragging:       false,
 	}
@@ -281,14 +289,51 @@ func (g *Game) createPlatformsFromLevel() {
 
 	// Create platforms from level data
 	for _, platformData := range g.currentLevel.Platforms {
-		platform := NewPlatform(
-			platformData.X,
-			platformData.Y,
-			platformData.Width,
-			platformData.Height,
-		)
-		g.platforms = append(g.platforms, platform)
-		g.world.AddEntity(platform)
+		// Create different platform types based on the Type field
+		switch platformData.Type {
+		case "small":
+			// Create small platform
+			platform := NewSmallPlatform(
+				platformData.X,
+				platformData.Y,
+			)
+			g.platforms = append(g.platforms, platform)
+			g.world.AddEntity(platform)
+
+		case "moving":
+			// Create moving platform
+			movingPlatform := NewMovingPlatform(
+				platformData.X,
+				platformData.Y,
+				platformData.Width,
+				platformData.Height,
+				platformData.MoveX,
+				platformData.MoveY,
+				platformData.Speed,
+			)
+			g.world.AddEntity(movingPlatform)
+
+		case "spike":
+			// Create spike pit
+			spikePit := NewSpikePit(
+				platformData.X,
+				platformData.Y,
+				platformData.Width,
+				platformData.Height,
+			)
+			g.world.AddEntity(spikePit)
+
+		default: // "normal" or any other type
+			// Create normal platform
+			platform := NewPlatform(
+				platformData.X,
+				platformData.Y,
+				platformData.Width,
+				platformData.Height,
+			)
+			g.platforms = append(g.platforms, platform)
+			g.world.AddEntity(platform)
+		}
 	}
 }
 
@@ -1106,20 +1151,67 @@ func (g *Game) handleEditorInput() {
 		}
 	}
 
-	// Platform size adjustment (when platform tool is selected)
+	// Platform type and size adjustment (when platform tool is selected)
 	if g.editorTool == "platform" {
-		// Adjust width
-		if ebiten.IsKeyPressed(ebiten.KeyLeft) {
-			g.editorPlatformWidth = math.Max(20, g.editorPlatformWidth - 10)
-		} else if ebiten.IsKeyPressed(ebiten.KeyRight) {
-			g.editorPlatformWidth += 10
+		// Platform type selection
+		if ebiten.IsKeyPressed(ebiten.KeyN) && !g.isKeyPressedPreviously(ebiten.KeyN) {
+			g.editorPlatformType = "normal"
+			fmt.Println("Selected normal platform")
+		} else if ebiten.IsKeyPressed(ebiten.KeyS) && !g.isKeyPressedPreviously(ebiten.KeyS) {
+			g.editorPlatformType = "small"
+			fmt.Println("Selected small platform")
+		} else if ebiten.IsKeyPressed(ebiten.KeyM) && !g.isKeyPressedPreviously(ebiten.KeyM) {
+			g.editorPlatformType = "moving"
+			fmt.Println("Selected moving platform")
+		} else if ebiten.IsKeyPressed(ebiten.KeyP) && !g.isKeyPressedPreviously(ebiten.KeyP) {
+			g.editorPlatformType = "spike"
+			fmt.Println("Selected spike pit")
 		}
 
-		// Adjust height
-		if ebiten.IsKeyPressed(ebiten.KeyDown) {
-			g.editorPlatformHeight = math.Max(10, g.editorPlatformHeight - 5)
-		} else if ebiten.IsKeyPressed(ebiten.KeyUp) {
-			g.editorPlatformHeight += 5
+		// Adjust width (except for small platforms which have fixed size)
+		if g.editorPlatformType != "small" {
+			if ebiten.IsKeyPressed(ebiten.KeyLeft) {
+				g.editorPlatformWidth = math.Max(20, g.editorPlatformWidth - 10)
+			} else if ebiten.IsKeyPressed(ebiten.KeyRight) {
+				g.editorPlatformWidth += 10
+			}
+		}
+
+		// Adjust height (except for small platforms which have fixed size)
+		if g.editorPlatformType != "small" {
+			if ebiten.IsKeyPressed(ebiten.KeyDown) {
+				g.editorPlatformHeight = math.Max(10, g.editorPlatformHeight - 5)
+			} else if ebiten.IsKeyPressed(ebiten.KeyUp) {
+				g.editorPlatformHeight += 5
+			}
+		}
+
+		// Moving platform configuration (when platform type is "moving")
+		if g.editorPlatformType == "moving" {
+			// Adjust horizontal movement distance with H + Left/Right
+			if ebiten.IsKeyPressed(ebiten.KeyH) {
+				if ebiten.IsKeyPressed(ebiten.KeyLeft) {
+					g.editorMovingPlatformMoveX = math.Max(0, g.editorMovingPlatformMoveX - 10)
+				} else if ebiten.IsKeyPressed(ebiten.KeyRight) {
+					g.editorMovingPlatformMoveX += 10
+				}
+			}
+
+			// Adjust vertical movement distance with V + Up/Down
+			if ebiten.IsKeyPressed(ebiten.KeyV) {
+				if ebiten.IsKeyPressed(ebiten.KeyDown) {
+					g.editorMovingPlatformMoveY = math.Max(0, g.editorMovingPlatformMoveY - 10)
+				} else if ebiten.IsKeyPressed(ebiten.KeyUp) {
+					g.editorMovingPlatformMoveY += 10
+				}
+			}
+
+			// Adjust speed with + and -
+			if ebiten.IsKeyPressed(ebiten.KeyMinus) {
+				g.editorMovingPlatformSpeed = math.Max(0.1, g.editorMovingPlatformSpeed - 0.1)
+			} else if ebiten.IsKeyPressed(ebiten.KeyEqual) { // + key
+				g.editorMovingPlatformSpeed += 0.1
+			}
 		}
 	}
 
@@ -1128,16 +1220,94 @@ func (g *Game) handleEditorInput() {
 		// Place or select entity based on current tool
 		switch g.editorTool {
 		case "platform":
-			// Create new platform
-			platform := NewPlatform(
-				mouseWorldX - g.editorPlatformWidth/2,
-				mouseWorldY - g.editorPlatformHeight/2,
-				g.editorPlatformWidth,
-				g.editorPlatformHeight,
-			)
-			g.platforms = append(g.platforms, platform)
-			g.world.AddEntity(platform)
-			fmt.Printf("Added platform at (%.1f, %.1f)\n", mouseWorldX, mouseWorldY)
+			// Create platform based on selected type
+			switch g.editorPlatformType {
+			case "small":
+				// Create small platform
+				platform := NewSmallPlatform(
+					mouseWorldX - 25, // Small platforms have fixed width of 50
+					mouseWorldY - 5,  // Small platforms have fixed height of 10
+				)
+				g.platforms = append(g.platforms, platform)
+				g.world.AddEntity(platform)
+				// Add to level data
+				g.currentLevel.AddPlatformWithType(
+					mouseWorldX - 25,
+					mouseWorldY - 5,
+					50, // Fixed width
+					10, // Fixed height
+					"small",
+					0, 0, 0, // No movement parameters
+				)
+				fmt.Printf("Added small platform at (%.1f, %.1f)\n", mouseWorldX, mouseWorldY)
+
+			case "moving":
+				// Create moving platform
+				movingPlatform := NewMovingPlatform(
+					mouseWorldX - g.editorPlatformWidth/2,
+					mouseWorldY - g.editorPlatformHeight/2,
+					g.editorPlatformWidth,
+					g.editorPlatformHeight,
+					g.editorMovingPlatformMoveX,
+					g.editorMovingPlatformMoveY,
+					g.editorMovingPlatformSpeed,
+				)
+				g.world.AddEntity(movingPlatform)
+				// Add to level data
+				g.currentLevel.AddPlatformWithType(
+					mouseWorldX - g.editorPlatformWidth/2,
+					mouseWorldY - g.editorPlatformHeight/2,
+					g.editorPlatformWidth,
+					g.editorPlatformHeight,
+					"moving",
+					g.editorMovingPlatformMoveX,
+					g.editorMovingPlatformMoveY,
+					g.editorMovingPlatformSpeed,
+				)
+				fmt.Printf("Added moving platform at (%.1f, %.1f) with movement (%.1f, %.1f) and speed %.1f\n", 
+					mouseWorldX, mouseWorldY, g.editorMovingPlatformMoveX, g.editorMovingPlatformMoveY, g.editorMovingPlatformSpeed)
+
+			case "spike":
+				// Create spike pit
+				spikePit := NewSpikePit(
+					mouseWorldX - g.editorPlatformWidth/2,
+					mouseWorldY - g.editorPlatformHeight/2,
+					g.editorPlatformWidth,
+					g.editorPlatformHeight,
+				)
+				g.world.AddEntity(spikePit)
+				// Add to level data
+				g.currentLevel.AddPlatformWithType(
+					mouseWorldX - g.editorPlatformWidth/2,
+					mouseWorldY - g.editorPlatformHeight/2,
+					g.editorPlatformWidth,
+					g.editorPlatformHeight,
+					"spike",
+					0, 0, 0, // No movement parameters
+				)
+				fmt.Printf("Added spike pit at (%.1f, %.1f)\n", mouseWorldX, mouseWorldY)
+
+			default: // "normal" or any other type
+				// Create normal platform
+				platform := NewPlatform(
+					mouseWorldX - g.editorPlatformWidth/2,
+					mouseWorldY - g.editorPlatformHeight/2,
+					g.editorPlatformWidth,
+					g.editorPlatformHeight,
+				)
+				g.platforms = append(g.platforms, platform)
+				g.world.AddEntity(platform)
+				// Add to level data
+				g.currentLevel.AddPlatformWithType(
+					mouseWorldX - g.editorPlatformWidth/2,
+					mouseWorldY - g.editorPlatformHeight/2,
+					g.editorPlatformWidth,
+					g.editorPlatformHeight,
+					"normal",
+					0, 0, 0, // No movement parameters
+				)
+				fmt.Printf("Added normal platform at (%.1f, %.1f)\n", mouseWorldX, mouseWorldY)
+			}
 
 		case "enemy":
 			// Create new enemy spawn point
@@ -1347,10 +1517,36 @@ func (g *Game) drawEditorUI(screen *ebiten.Image) {
 	infoY := toolY + 20
 	switch g.editorTool {
 	case "platform":
-		platformInfo := fmt.Sprintf("Platform Size: %.0f x %.0f", g.editorPlatformWidth, g.editorPlatformHeight)
-		ebitenutil.DebugPrintAt(screen, platformInfo, boxX + 10, infoY)
+		// Show platform type
+		platformTypeInfo := fmt.Sprintf("Platform Type: %s", g.editorPlatformType)
+		ebitenutil.DebugPrintAt(screen, platformTypeInfo, boxX + 10, infoY)
 		infoY += 20
-		ebitenutil.DebugPrintAt(screen, "Use arrow keys to adjust size", boxX + 10, infoY)
+
+		// Show platform type selection controls
+		ebitenutil.DebugPrintAt(screen, "Press N: Normal, S: Small, M: Moving, P: Spike", boxX + 10, infoY)
+		infoY += 20
+
+		// Show platform size (except for small platforms which have fixed size)
+		if g.editorPlatformType != "small" {
+			platformInfo := fmt.Sprintf("Platform Size: %.0f x %.0f", g.editorPlatformWidth, g.editorPlatformHeight)
+			ebitenutil.DebugPrintAt(screen, platformInfo, boxX + 10, infoY)
+			infoY += 20
+			ebitenutil.DebugPrintAt(screen, "Use arrow keys to adjust size", boxX + 10, infoY)
+			infoY += 20
+		}
+
+		// Show moving platform configuration
+		if g.editorPlatformType == "moving" {
+			moveInfo := fmt.Sprintf("Movement: X=%.0f Y=%.0f Speed=%.1f", 
+				g.editorMovingPlatformMoveX, g.editorMovingPlatformMoveY, g.editorMovingPlatformSpeed)
+			ebitenutil.DebugPrintAt(screen, moveInfo, boxX + 10, infoY)
+			infoY += 20
+			ebitenutil.DebugPrintAt(screen, "Hold H + Left/Right: Adjust horizontal movement", boxX + 10, infoY)
+			infoY += 20
+			ebitenutil.DebugPrintAt(screen, "Hold V + Up/Down: Adjust vertical movement", boxX + 10, infoY)
+			infoY += 20
+			ebitenutil.DebugPrintAt(screen, "Press +/-: Adjust speed", boxX + 10, infoY)
+		}
 	case "enemy":
 		enemyInfo := fmt.Sprintf("Enemy Type: %s", g.editorEnemyType)
 		ebitenutil.DebugPrintAt(screen, enemyInfo, boxX + 10, infoY)
@@ -1599,59 +1795,75 @@ func (g *Game) drawUI(screen *ebiten.Image) {
 	textY := int(ammoBoxY) + int(ammoBoxHeight)/2 - 3
 	ebitenutil.DebugPrintAt(screen, fullText, int(ammoBoxX) + 20, textY)
 
-	// Draw health bar with improved styling
-	healthBarWidth := 200
-	healthBarHeight := 25
-	healthBarX := 20
-	healthBarY := 20
-	healthBarBorderSize := 2
+	// Draw lives as hearts
+	heartSize := 25.0
+	heartSpacing := 10.0
+	heartsX := 20.0
+	heartsY := 20.0
 
-	// Draw health bar container with border
-	ebitenutil.DrawRect(screen, float64(healthBarX-healthBarBorderSize), float64(healthBarY-healthBarBorderSize), 
-		float64(healthBarWidth+healthBarBorderSize*2), float64(healthBarHeight+healthBarBorderSize*2), 
+	// Calculate number of hearts based on max health (1 heart = 20 health)
+	maxHearts := (g.player.MaxHealth + 19) / 20 // Ceiling division
+	currentHearts := (g.player.Health + 19) / 20 // Ceiling division
+
+	// Draw heart background with border
+	backgroundWidth := float64(maxHearts) * (heartSize + heartSpacing) + heartSpacing
+	backgroundHeight := heartSize + heartSpacing*2
+
+	// Draw background
+	ebitenutil.DrawRect(screen, heartsX - heartSpacing, heartsY - heartSpacing, 
+		backgroundWidth, backgroundHeight, 
 		color.RGBA{40, 40, 40, 220})
 
-	// Draw health bar background (dark red)
-	ebitenutil.DrawRect(screen, float64(healthBarX), float64(healthBarY), 
-		float64(healthBarWidth), float64(healthBarHeight), 
-		color.RGBA{120, 0, 0, 255})
+	// Draw border
+	heartBorderSize := 2.0
+	borderColor := color.RGBA{255, 215, 0, 255} // Gold
 
-	// Draw health bar foreground with gradient effect
-	healthWidth := float64(healthBarWidth) * float64(g.player.Health) / float64(g.player.MaxHealth)
+	// Top border
+	ebitenutil.DrawRect(screen, heartsX - heartSpacing, heartsY - heartSpacing, 
+		backgroundWidth, heartBorderSize, borderColor)
 
-	// Health color changes based on amount (red->yellow->green)
-	var healthColor color.RGBA
-	healthPercent := float64(g.player.Health) / float64(g.player.MaxHealth)
+	// Bottom border
+	ebitenutil.DrawRect(screen, heartsX - heartSpacing, heartsY - heartSpacing + backgroundHeight - heartBorderSize, 
+		backgroundWidth, heartBorderSize, borderColor)
 
-	if healthPercent < 0.3 {
-		// Red for low health
-		healthColor = color.RGBA{255, 0, 0, 255}
-	} else if healthPercent < 0.6 {
-		// Yellow for medium health
-		healthColor = color.RGBA{255, 255, 0, 255}
-	} else {
-		// Green for high health
-		healthColor = color.RGBA{0, 255, 0, 255}
+	// Left border
+	ebitenutil.DrawRect(screen, heartsX - heartSpacing, heartsY - heartSpacing, 
+		heartBorderSize, backgroundHeight, borderColor)
+
+	// Right border
+	ebitenutil.DrawRect(screen, heartsX - heartSpacing + backgroundWidth - heartBorderSize, heartsY - heartSpacing, 
+		heartBorderSize, backgroundHeight, borderColor)
+
+	// Draw hearts
+	for i := 0; i < maxHearts; i++ {
+		heartX := heartsX + float64(i) * (heartSize + heartSpacing)
+		heartY := heartsY
+
+		// Determine heart color based on whether it's a filled or empty heart
+		var heartColor color.RGBA
+		if i < currentHearts {
+			// Filled heart (red)
+			heartColor = color.RGBA{255, 0, 0, 255}
+		} else {
+			// Empty heart (semi-transparent gray)
+			heartColor = color.RGBA{150, 150, 150, 150}
+		}
+
+		// Draw the heart
+		drawHeart(screen, heartX + heartSize/2, heartY + heartSize/2, heartSize, heartColor)
 	}
 
-	ebitenutil.DrawRect(screen, float64(healthBarX), float64(healthBarY), 
-		healthWidth, float64(healthBarHeight), healthColor)
-
-	// Add highlight at the top of the health bar for 3D effect
-	highlightHeight := 3.0
-	highlightColor := color.RGBA{255, 255, 255, 100}
-	ebitenutil.DrawRect(screen, float64(healthBarX), float64(healthBarY), 
-		healthWidth, highlightHeight, highlightColor)
-
-	// Draw health text with shadow for better visibility
-	healthText := fmt.Sprintf("HEALTH: %d", g.player.Health)
+	// Draw "LIVES" text
+	livesText := "LIVES"
+	textX := heartsX + backgroundWidth + 10
+	livesTextY := int(heartsY + heartSize/2)
 
 	// Draw text shadow
 	shadowOffset := 1
-	ebitenutil.DebugPrintAt(screen, healthText, healthBarX+5+shadowOffset, healthBarY+8+shadowOffset)
+	ebitenutil.DebugPrintAt(screen, livesText, int(textX) + shadowOffset, livesTextY + shadowOffset)
 
 	// Draw text
-	ebitenutil.DebugPrintAt(screen, healthText, healthBarX+5, healthBarY+8)
+	ebitenutil.DebugPrintAt(screen, livesText, int(textX), livesTextY)
 
 	// Draw level completion message if level is complete
 	if g.levelComplete {
