@@ -250,6 +250,11 @@ func (w *World) Draw(screen *ebiten.Image) {
                 // Draw bullet with trail effect
                 drawBullet(screen, x, y, bullet)
             }
+        } else if rocket, ok := e.(*Rocket); ok {
+            if rocket.Active {
+                // Draw rocket with effects
+                drawRocket(screen, x, y, rocket)
+            }
         } else if enemy, ok := e.(*Enemy); ok {
             if enemy.Active && !enemy.Dead {
                 // Draw enemy with more details
@@ -355,16 +360,25 @@ func drawPlayer(screen *ebiten.Image, x, y float64, player *Player) {
     ebitenutil.DrawRect(screen, leftEyeX + (eyeSize-pupilSize)/2 + pupilOffset, eyeY + (eyeSize-pupilSize)/2, pupilSize, pupilSize, pupilColor)
     ebitenutil.DrawRect(screen, rightEyeX + (eyeSize-pupilSize)/2 + pupilOffset, eyeY + (eyeSize-pupilSize)/2, pupilSize, pupilSize, pupilColor)
 
-    // Draw gun if player is facing right
+    // Draw gun based on current weapon and angle
     gunColor := color.RGBA{100, 100, 100, 255}
     gunWidth := player.Width * 0.6
     gunHeight := player.Height * 0.15
-    gunY := y + player.Height * 0.4
 
-    if player.FacingRight {
-        ebitenutil.DrawRect(screen, x + player.Width, gunY, gunWidth, gunHeight, gunColor)
+    // Calculate gun position at center of player
+    gunCenterX := x + player.Width/2
+    gunCenterY := y + player.Height * 0.4
+
+    // Draw different gun based on current weapon
+    if player.CurrentWeapon == 0 {
+        // Machine gun (thinner, longer)
+        drawRotatedRectangle(screen, gunCenterX, gunCenterY, gunWidth, gunHeight, player.GunAngle, gunColor)
     } else {
-        ebitenutil.DrawRect(screen, x - gunWidth, gunY, gunWidth, gunHeight, gunColor)
+        // Rocket launcher (thicker, shorter)
+        rocketLauncherColor := color.RGBA{80, 80, 80, 255}
+        rocketLauncherWidth := player.Width * 0.5
+        rocketLauncherHeight := player.Height * 0.25
+        drawRotatedRectangle(screen, gunCenterX, gunCenterY, rocketLauncherWidth, rocketLauncherHeight, player.GunAngle, rocketLauncherColor)
     }
 
     // Draw legs
@@ -382,6 +396,144 @@ func drawPlayer(screen *ebiten.Image, x, y float64, player *Player) {
     if player.InvincibleTime > 0 && player.InvincibleTime % 4 < 2 {
         shieldColor := color.RGBA{255, 255, 255, 100}
         ebitenutil.DrawRect(screen, x-2, y-2, player.Width+4, player.Height+4, shieldColor)
+    }
+}
+
+// drawRotatedRectangle draws a rectangle rotated around its center
+func drawRotatedRectangle(screen *ebiten.Image, centerX, centerY, width, height, angle float64, clr color.RGBA) {
+    // Calculate the four corners of the rectangle
+    halfWidth := width / 2
+    halfHeight := height / 2
+
+    // Calculate sin and cos of the angle once
+    sinAngle := math.Sin(angle)
+    cosAngle := math.Cos(angle)
+
+    // Calculate rotated corners
+    x1 := centerX + cosAngle*halfWidth - sinAngle*halfHeight
+    y1 := centerY + sinAngle*halfWidth + cosAngle*halfHeight
+
+    x2 := centerX + cosAngle*halfWidth + sinAngle*halfHeight
+    y2 := centerY + sinAngle*halfWidth - cosAngle*halfHeight
+
+    x3 := centerX - cosAngle*halfWidth + sinAngle*halfHeight
+    y3 := centerY - sinAngle*halfWidth - cosAngle*halfHeight
+
+    x4 := centerX - cosAngle*halfWidth - sinAngle*halfHeight
+    y4 := centerY - sinAngle*halfWidth + cosAngle*halfHeight
+
+    // Draw the rotated rectangle as two triangles
+    ebitenutil.DrawLine(screen, x1, y1, x2, y2, clr)
+    ebitenutil.DrawLine(screen, x2, y2, x3, y3, clr)
+    ebitenutil.DrawLine(screen, x3, y3, x4, y4, clr)
+    ebitenutil.DrawLine(screen, x4, y4, x1, y1, clr)
+}
+
+// drawRocket draws a rocket with effects
+func drawRocket(screen *ebiten.Image, x, y float64, rocket *Rocket) {
+    if rocket.Exploded {
+        // Draw explosion
+        explosionProgress := float64(rocket.ExplosionTimer) / float64(rocket.ExplosionTime)
+        explosionRadius := rocket.BlastRadius * explosionProgress
+        explosionAlpha := uint8(255 * (1 - explosionProgress))
+
+        // Draw explosion as concentric circles with fading colors
+        outerColor := color.RGBA{255, 100, 0, explosionAlpha} // Orange
+        middleColor := color.RGBA{255, 200, 0, explosionAlpha} // Yellow
+        innerColor := color.RGBA{255, 255, 255, explosionAlpha} // White
+
+        // Draw outer circle
+        drawCircle(screen, x + rocket.Width/2, y + rocket.Height/2, explosionRadius, outerColor)
+
+        // Draw middle circle
+        drawCircle(screen, x + rocket.Width/2, y + rocket.Height/2, explosionRadius * 0.7, middleColor)
+
+        // Draw inner circle
+        drawCircle(screen, x + rocket.Width/2, y + rocket.Height/2, explosionRadius * 0.3, innerColor)
+    } else {
+        // Draw rocket body
+        rocketColor := rocket.Color
+        ebitenutil.DrawRect(screen, x, y, rocket.Width, rocket.Height, rocketColor)
+
+        // Calculate angle from velocity
+        angle := math.Atan2(rocket.VelY, rocket.VelX)
+
+        // Draw rocket nose cone
+        noseLength := rocket.Width * 0.5
+        noseX := x + rocket.Width
+        noseY := y + rocket.Height/2
+
+        // Calculate nose tip position based on angle
+        noseTipX := noseX + math.Cos(angle) * noseLength
+        noseTipY := noseY + math.Sin(angle) * noseLength
+
+        // Draw nose cone as a triangle
+        ebitenutil.DrawLine(screen, noseX, noseY - rocket.Height/2, noseTipX, noseTipY, rocketColor)
+        ebitenutil.DrawLine(screen, noseTipX, noseTipY, noseX, noseY + rocket.Height/2, rocketColor)
+
+        // Draw rocket fins
+        finColor := color.RGBA{150, 150, 150, 255}
+        finWidth := rocket.Width * 0.3
+        finHeight := rocket.Height * 0.8
+
+        // Draw top fin
+        ebitenutil.DrawRect(screen, x, y - finHeight, finWidth, finHeight, finColor)
+
+        // Draw bottom fin
+        ebitenutil.DrawRect(screen, x, y + rocket.Height, finWidth, finHeight, finColor)
+
+        // Draw rocket exhaust/trail
+        trailLength := rocket.Width * 2
+
+        // Calculate trail start position (back of rocket)
+        trailStartX := x
+        trailStartY := y + rocket.Height/2
+
+        // Calculate trail end position based on opposite of rocket angle
+        trailEndX := trailStartX - math.Cos(angle) * trailLength
+        trailEndY := trailStartY - math.Sin(angle) * trailLength
+
+        // Draw trail as a triangle
+        trailColor1 := color.RGBA{255, 100, 0, 200} // Orange
+        trailColor2 := color.RGBA{255, 200, 0, 150} // Yellow
+        trailColor3 := color.RGBA{255, 255, 255, 100} // White
+
+        // Draw three overlapping triangles for the trail effect
+        ebitenutil.DrawLine(screen, trailStartX, trailStartY - rocket.Height/4, trailEndX, trailEndY, trailColor1)
+        ebitenutil.DrawLine(screen, trailStartX, trailStartY + rocket.Height/4, trailEndX, trailEndY, trailColor1)
+
+        // Draw inner trail
+        innerTrailEndX := trailStartX - math.Cos(angle) * trailLength * 0.7
+        innerTrailEndY := trailStartY - math.Sin(angle) * trailLength * 0.7
+        ebitenutil.DrawLine(screen, trailStartX, trailStartY - rocket.Height/6, innerTrailEndX, innerTrailEndY, trailColor2)
+        ebitenutil.DrawLine(screen, trailStartX, trailStartY + rocket.Height/6, innerTrailEndX, innerTrailEndY, trailColor2)
+
+        // Draw core trail
+        coreTrailEndX := trailStartX - math.Cos(angle) * trailLength * 0.4
+        coreTrailEndY := trailStartY - math.Sin(angle) * trailLength * 0.4
+        ebitenutil.DrawLine(screen, trailStartX, trailStartY - rocket.Height/10, coreTrailEndX, coreTrailEndY, trailColor3)
+        ebitenutil.DrawLine(screen, trailStartX, trailStartY + rocket.Height/10, coreTrailEndX, coreTrailEndY, trailColor3)
+    }
+}
+
+// drawCircle draws a filled circle
+func drawCircle(screen *ebiten.Image, centerX, centerY, radius float64, clr color.RGBA) {
+    // Draw a circle by drawing lines from the center to the edge
+    segments := 32 // Number of segments to approximate the circle
+    for i := 0; i < segments; i++ {
+        angle1 := float64(i) * 2 * math.Pi / float64(segments)
+        angle2 := float64(i+1) * 2 * math.Pi / float64(segments)
+
+        x1 := centerX + math.Cos(angle1) * radius
+        y1 := centerY + math.Sin(angle1) * radius
+
+        x2 := centerX + math.Cos(angle2) * radius
+        y2 := centerY + math.Sin(angle2) * radius
+
+        // Draw a line from the center to the edge
+        ebitenutil.DrawLine(screen, centerX, centerY, x1, y1, clr)
+        ebitenutil.DrawLine(screen, centerX, centerY, x2, y2, clr)
+        ebitenutil.DrawLine(screen, x1, y1, x2, y2, clr)
     }
 }
 
@@ -743,16 +895,29 @@ type Player struct {
     Color     color.RGBA
     SpawnX    float64
     SpawnY    float64
+    // Gun properties
+    GunAngle   float64 // Angle of the gun in radians
     // Machine gun properties
     BulletCount int    // Total ammo
     ClipSize    int    // Size of each clip
     CurrentClip int    // Bullets in current clip
     FireRate    int    // Frames between shots
     LastFired   int    // Frame count of last shot
+    // Rocket launcher properties
+    RocketCount   int  // Total rockets
+    RocketClipSize int // Size of rocket clip (1)
+    CurrentRocket int  // Current rocket in clip
+    RocketFireRate int // Frames between rocket shots
+    LastRocketFired int // Frame count of last rocket fired
+    RocketReloadTime int // Total frames needed to reload rocket
+    RocketReloadTimer int // Current rocket reload timer
+    IsRocketReloading bool // Whether rocket launcher is reloading
+    // Weapon state
     FacingRight bool   // Direction player is facing
     IsReloading bool   // Whether player is currently reloading
     ReloadTime  int    // Total frames needed to reload
     ReloadTimer int    // Current reload timer
+    CurrentWeapon int  // 0 = machine gun, 1 = rocket launcher
     // Health and lives
     Health     int
     MaxHealth  int
@@ -776,16 +941,29 @@ func NewPlayer(x, y float64) *Player {
         Color:      color.RGBA{160, 120, 80, 255}, // Light brown (pinto bean)
         SpawnX:     x,
         SpawnY:     y,
+        // Initialize gun properties
+        GunAngle:    0,
         // Initialize machine gun properties
         BulletCount:  200,    // Total ammo
         ClipSize:     50,     // 50 bullets per clip
         CurrentClip:  50,     // Start with a full clip
         FireRate:     10,     // Frames between shots
         LastFired:    0,
+        // Initialize rocket launcher properties
+        RocketCount:   10,    // Total rockets
+        RocketClipSize: 1,    // 1 rocket per clip
+        CurrentRocket: 1,     // Start with a full clip
+        RocketFireRate: 60,   // 1 second between rocket shots
+        LastRocketFired: 0,
+        RocketReloadTime: 180, // 3 seconds at 60 FPS
+        RocketReloadTimer: 0,
+        IsRocketReloading: false,
+        // Initialize weapon state
         FacingRight:  true,
         IsReloading:  false,
         ReloadTime:   120,    // 2 seconds at 60 FPS
         ReloadTimer:  0,
+        CurrentWeapon: 0,     // Start with machine gun
         // Initialize health and lives
         Health:        100,
         MaxHealth:     100,
@@ -814,7 +992,7 @@ func (p *Player) Update() {
         p.Color = color.RGBA{160, 120, 80, 255} // Light brown (pinto bean)
     }
 
-    // Update reload timer
+    // Update machine gun reload timer
     if p.IsReloading {
         p.ReloadTimer--
         if p.ReloadTimer <= 0 {
@@ -822,9 +1000,18 @@ func (p *Player) Update() {
             p.FinishReload()
         }
     }
+
+    // Update rocket launcher reload timer
+    if p.IsRocketReloading {
+        p.RocketReloadTimer--
+        if p.RocketReloadTimer <= 0 {
+            // Rocket reload complete
+            p.FinishRocketReload()
+        }
+    }
 }
 
-// StartReload begins the reload process
+// StartReload begins the reload process for the machine gun
 func (p *Player) StartReload() {
     // Don't reload if already reloading or if clip is full or if no ammo left
     if p.IsReloading || p.CurrentClip >= p.ClipSize || p.BulletCount <= 0 {
@@ -835,7 +1022,7 @@ func (p *Player) StartReload() {
     p.ReloadTimer = p.ReloadTime
 }
 
-// FinishReload completes the reload process
+// FinishReload completes the reload process for the machine gun
 func (p *Player) FinishReload() {
     if !p.IsReloading {
         return
@@ -852,6 +1039,36 @@ func (p *Player) FinishReload() {
     // Reset reload state
     p.IsReloading = false
     p.ReloadTimer = 0
+}
+
+// StartRocketReload begins the reload process for the rocket launcher
+func (p *Player) StartRocketReload() {
+    // Don't reload if already reloading or if clip is full or if no ammo left
+    if p.IsRocketReloading || p.CurrentRocket >= p.RocketClipSize || p.RocketCount <= 0 {
+        return
+    }
+
+    p.IsRocketReloading = true
+    p.RocketReloadTimer = p.RocketReloadTime
+}
+
+// FinishRocketReload completes the reload process for the rocket launcher
+func (p *Player) FinishRocketReload() {
+    if !p.IsRocketReloading {
+        return
+    }
+
+    // Calculate how many rockets to add to the clip
+    rocketsNeeded := p.RocketClipSize - p.CurrentRocket
+    rocketsToAdd := minInt(rocketsNeeded, p.RocketCount)
+
+    // Add rockets to clip and remove from total
+    p.CurrentRocket += rocketsToAdd
+    p.RocketCount -= rocketsToAdd
+
+    // Reset reload state
+    p.IsRocketReloading = false
+    p.RocketReloadTimer = 0
 }
 
 // TakeDamage applies damage to the player
@@ -958,6 +1175,90 @@ type Bullet struct {
     Lifetime  int
     Damage    int    // Damage dealt to enemies
 }
+
+// Rocket represents a rocket projectile fired by the player
+type Rocket struct {
+    X         float64
+    Y         float64
+    Width     float64
+    Height    float64
+    VelX      float64
+    VelY      float64
+    Active    bool
+    Color     color.RGBA
+    Lifetime  int
+    Damage    int    // Damage dealt to enemies
+    Exploded  bool   // Whether the rocket has exploded
+    BlastRadius float64 // Explosion radius
+    ExplosionTime int // Time the explosion lasts
+    ExplosionTimer int // Current explosion timer
+}
+
+// NewRocket creates a new rocket entity
+func NewRocket(x, y, velX, velY float64) *Rocket {
+    return &Rocket{
+        X:        x,
+        Y:        y,
+        Width:    12,
+        Height:   6,
+        VelX:     velX,
+        VelY:     velY,
+        Active:   true,
+        Color:    color.RGBA{255, 100, 0, 255}, // Orange
+        Lifetime: 180, // Frames before rocket disappears
+        Damage:   75,  // Damage dealt to enemies
+        Exploded: false,
+        BlastRadius: 100.0, // Explosion radius
+        ExplosionTime: 30, // Explosion lasts for 0.5 seconds
+        ExplosionTimer: 0,
+    }
+}
+
+// Update updates the rocket state
+func (r *Rocket) Update() {
+    // If exploded, update explosion timer
+    if r.Exploded {
+        r.ExplosionTimer++
+        if r.ExplosionTimer >= r.ExplosionTime {
+            r.Active = false
+        }
+        return
+    }
+
+    // Update lifetime
+    r.Lifetime--
+    if r.Lifetime <= 0 {
+        r.Explode()
+    }
+}
+
+// Explode triggers the rocket explosion
+func (r *Rocket) Explode() {
+    r.Exploded = true
+    r.ExplosionTimer = 0
+    // Stop the rocket's movement
+    r.VelX = 0
+    r.VelY = 0
+}
+
+// Draw is a placeholder to satisfy the Entity interface
+// The actual drawing is handled by World.Draw
+func (r *Rocket) Draw(screen *ebiten.Image) {
+    // Drawing is handled by World.Draw
+}
+
+// Entity interface implementation
+func (r *Rocket) GetX() float64      { return r.X }
+func (r *Rocket) GetY() float64      { return r.Y }
+func (r *Rocket) GetWidth() float64  { return r.Width }
+func (r *Rocket) GetHeight() float64 { return r.Height }
+func (r *Rocket) SetX(x float64)     { r.X = x }
+func (r *Rocket) SetY(y float64)     { r.Y = y }
+func (r *Rocket) SetVelX(vx float64) { r.VelX = vx }
+func (r *Rocket) SetVelY(vy float64) { r.VelY = vy }
+func (r *Rocket) GetVelX() float64   { return r.VelX }
+func (r *Rocket) GetVelY() float64   { return r.VelY }
+func (r *Rocket) IsCollidable() bool { return r.Active && !r.Exploded }
 
 // Enemy represents an enemy character
 type Enemy struct {

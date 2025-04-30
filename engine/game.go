@@ -17,6 +17,7 @@ type Game struct {
 	player         *Player
 	platforms      []*Platform
 	bullets        []*Bullet
+	rockets        []*Rocket
 	enemies        []*Enemy
 	flag           *Flag
 	gravity        float64
@@ -24,6 +25,9 @@ type Game struct {
 	frameCount     int
 	enemySpawnTimer int
 	levelComplete  bool
+	mouseX         int
+	mouseY         int
+	prevKeys       map[ebiten.Key]bool
 }
 
 // NewGame creates a new Game instance
@@ -35,10 +39,14 @@ func NewGame(width, height int) (*Game, error) {
 		gravity:        0.5,
 		debug:          true,
 		bullets:        make([]*Bullet, 0),
+		rockets:        make([]*Rocket, 0),
 		enemies:        make([]*Enemy, 0),
 		frameCount:     0,
 		enemySpawnTimer: 300, // Spawn first enemy after 5 seconds
 		levelComplete:  false,
+		mouseX:         0,
+		mouseY:         0,
+		prevKeys:       make(map[ebiten.Key]bool),
 	}
 
  	// Initialize the world with camera
@@ -141,19 +149,26 @@ func (g *Game) FireBullet() {
 		return
 	}
 
-	// Determine bullet position and velocity based on player direction
-	bulletX := g.player.X
-	bulletVelX := 10.0 // Default bullet speed
+	// Calculate bullet position based on player position and gun angle
+	gunLength := g.player.Width * 0.6 // Length of the gun
+	gunOffsetY := g.player.Height * 0.4 // Y position of the gun relative to player
 
-	if g.player.FacingRight {
-		bulletX += g.player.Width // Bullet starts at right edge of player
-	} else {
-		bulletX -= 8 // Bullet starts at left edge of player
-		bulletVelX = -10.0 // Bullet moves left
-	}
+	// Calculate gun position
+	gunX := g.player.X + g.player.Width/2
+	gunY := g.player.Y + gunOffsetY
 
-	// Create new bullet
-	bullet := NewBullet(bulletX, g.player.Y + g.player.Height/2 - 2, bulletVelX)
+	// Calculate bullet starting position at the end of the gun
+	bulletX := gunX + math.Cos(g.player.GunAngle) * gunLength
+	bulletY := gunY + math.Sin(g.player.GunAngle) * gunLength
+
+	// Calculate bullet velocity based on gun angle
+	bulletSpeed := 12.0 // Bullet speed
+	bulletVelX := math.Cos(g.player.GunAngle) * bulletSpeed
+	bulletVelY := math.Sin(g.player.GunAngle) * bulletSpeed
+
+	// Create new bullet with calculated trajectory
+	bullet := NewBullet(bulletX, bulletY, bulletVelX)
+	bullet.VelY = bulletVelY // Set Y velocity
 
 	// Add bullet to game and world
 	g.bullets = append(g.bullets, bullet)
@@ -162,6 +177,56 @@ func (g *Game) FireBullet() {
 	// Update player state
 	g.player.CurrentClip--
 	g.player.LastFired = g.frameCount
+}
+
+// FireRocket creates a new rocket and adds it to the game
+func (g *Game) FireRocket() {
+	// Check if player is reloading rocket launcher
+	if g.player.IsRocketReloading {
+		return
+	}
+
+	// Check if rocket clip is empty
+	if g.player.CurrentRocket <= 0 {
+		// Auto-reload if clip is empty and player has rockets
+		if g.player.RocketCount > 0 {
+			g.player.StartRocketReload()
+		}
+		return
+	}
+
+	// Check if enough time has passed since last rocket shot
+	if g.frameCount - g.player.LastRocketFired < g.player.RocketFireRate {
+		return
+	}
+
+	// Calculate rocket position based on player position and gun angle
+	gunLength := g.player.Width * 0.6 // Length of the gun
+	gunOffsetY := g.player.Height * 0.4 // Y position of the gun relative to player
+
+	// Calculate gun position
+	gunX := g.player.X + g.player.Width/2
+	gunY := g.player.Y + gunOffsetY
+
+	// Calculate rocket starting position at the end of the gun
+	rocketX := gunX + math.Cos(g.player.GunAngle) * gunLength
+	rocketY := gunY + math.Sin(g.player.GunAngle) * gunLength
+
+	// Calculate rocket velocity based on gun angle
+	rocketSpeed := 8.0 // Rocket speed (slower than bullets)
+	rocketVelX := math.Cos(g.player.GunAngle) * rocketSpeed
+	rocketVelY := math.Sin(g.player.GunAngle) * rocketSpeed
+
+	// Create new rocket with calculated trajectory
+	rocket := NewRocket(rocketX, rocketY, rocketVelX, rocketVelY)
+
+	// Add rocket to game and world
+	g.rockets = append(g.rockets, rocket)
+	g.world.AddEntity(rocket)
+
+	// Update player state
+	g.player.CurrentRocket--
+	g.player.LastRocketFired = g.frameCount
 }
 
 // SpawnEnemy creates a new enemy and adds it to the game
@@ -249,6 +314,12 @@ func (g *Game) Update() error {
 	// Increment frame counter
 	g.frameCount++
 
+	// Update mouse position
+	g.mouseX, g.mouseY = ebiten.CursorPosition()
+
+	// Update player's gun angle based on mouse position
+	g.updatePlayerGunAngle()
+
 	// Handle player input
 	g.handleInput()
 
@@ -270,12 +341,16 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// Clean up inactive bullets and enemies
+	// Clean up inactive bullets, rockets, and enemies
 	g.cleanupBullets()
+	g.cleanupRockets()
 	g.cleanupEnemies()
 
 	// Check for bullet-enemy collisions
 	g.checkBulletEnemyCollisions()
+
+	// Check for rocket-enemy collisions
+	g.checkRocketEnemyCollisions()
 
 	// Check for player-enemy collisions
 	g.checkPlayerEnemyCollisions()
@@ -284,6 +359,28 @@ func (g *Game) Update() error {
 	g.checkPlayerFlagCollision()
 
 	return nil
+}
+
+// updatePlayerGunAngle calculates the angle between the player and the mouse cursor
+func (g *Game) updatePlayerGunAngle() {
+	// Calculate the position of the player in screen coordinates
+	playerScreenX := g.player.X - g.world.GetCamera().X
+	playerScreenY := g.player.Y + g.player.Height/2 // Use the middle of the player for aiming
+
+	// Calculate the angle between the player and the mouse cursor
+	dx := float64(g.mouseX) - playerScreenX
+	dy := float64(g.mouseY) - playerScreenY
+	angle := math.Atan2(dy, dx)
+
+	// Update the player's gun angle
+	g.player.GunAngle = angle
+
+	// Update the player's facing direction based on the mouse position
+	if dx > 0 {
+		g.player.FacingRight = true
+	} else {
+		g.player.FacingRight = false
+	}
 }
 
 // checkPlayerFlagCollision checks if the player has reached the flag
@@ -430,10 +527,8 @@ func (g *Game) handleInput() {
 	// Left/Right movement
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		g.player.MoveLeft()
-		g.player.FacingRight = false
 	} else if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
 		g.player.MoveRight()
-		g.player.FacingRight = true
 	} else {
 		g.player.StopHorizontal()
 	}
@@ -443,9 +538,22 @@ func (g *Game) handleInput() {
 		g.player.Jump()
 	}
 
-	// Shoot
+	// Weapon switching (1 key for machine gun, 2 key for rocket launcher)
+	if ebiten.IsKeyPressed(ebiten.Key1) && !g.isKeyPressedPreviously(ebiten.Key1) {
+		g.player.CurrentWeapon = 0 // Switch to machine gun
+	} else if ebiten.IsKeyPressed(ebiten.Key2) && !g.isKeyPressedPreviously(ebiten.Key2) {
+		g.player.CurrentWeapon = 1 // Switch to rocket launcher
+	}
+
+	// Shoot based on current weapon
 	if ebiten.IsKeyPressed(ebiten.KeyX) {
-		g.FireBullet()
+		if g.player.CurrentWeapon == 0 {
+			// Fire machine gun
+			g.FireBullet()
+		} else {
+			// Fire rocket launcher
+			g.FireRocket()
+		}
 	}
 
 	// Toggle debug mode
@@ -455,7 +563,13 @@ func (g *Game) handleInput() {
 
 	// Reload (R key)
 	if ebiten.IsKeyPressed(ebiten.KeyR) && !g.isKeyPressedPreviously(ebiten.KeyR) {
-		g.player.StartReload()
+		if g.player.CurrentWeapon == 0 {
+			// Reload machine gun
+			g.player.StartReload()
+		} else {
+			// Reload rocket launcher
+			g.player.StartRocketReload()
+		}
 	}
 
 	// Testing keys
@@ -464,6 +578,8 @@ func (g *Game) handleInput() {
 	if ebiten.IsKeyPressed(ebiten.KeyF) && !g.isKeyPressedPreviously(ebiten.KeyF) {
 		g.player.BulletCount = 200
 		g.player.CurrentClip = g.player.ClipSize
+		g.player.RocketCount = 10
+		g.player.CurrentRocket = g.player.RocketClipSize
 	}
 
 	// Take damage (T key)
@@ -472,10 +588,57 @@ func (g *Game) handleInput() {
 	}
 }
 
+// cleanupRockets removes inactive rockets from the game
+func (g *Game) cleanupRockets() {
+	activeRockets := make([]*Rocket, 0)
+
+	for _, rocket := range g.rockets {
+		if rocket.Active {
+			activeRockets = append(activeRockets, rocket)
+		}
+	}
+
+	g.rockets = activeRockets
+}
+
+// checkRocketEnemyCollisions checks for collisions between rockets and enemies
+func (g *Game) checkRocketEnemyCollisions() {
+	for _, rocket := range g.rockets {
+		if !rocket.Active || rocket.Exploded {
+			continue
+		}
+
+		for _, enemy := range g.enemies {
+			if !enemy.Active || enemy.Dead {
+				continue
+			}
+
+			// Simple AABB collision detection
+			if rocket.X < enemy.X+enemy.Width &&
+				rocket.X+rocket.Width > enemy.X &&
+				rocket.Y < enemy.Y+enemy.Height &&
+				rocket.Y+rocket.Height > enemy.Y {
+
+				// Rocket hit enemy
+				enemy.TakeDamage(rocket.Damage)
+				rocket.Explode()
+				break
+			}
+		}
+	}
+}
+
 // isKeyPressedPreviously is a helper to detect key press events
 func (g *Game) isKeyPressedPreviously(key ebiten.Key) bool {
-	// This is a simplified version - in a real game you'd track previous state
-	return false
+	// Check if the key was pressed in the previous frame
+	wasPressed, exists := g.prevKeys[key]
+
+	// Update the key state for the next frame
+	g.prevKeys[key] = ebiten.IsKeyPressed(key)
+
+	// If the key exists in the map, return its previous state
+	// Otherwise, return false (key was not pressed)
+	return exists && wasPressed
 }
 
 // Draw draws the game
@@ -543,17 +706,41 @@ func (g *Game) drawBackground(screen *ebiten.Image) {
 
 // drawUI draws the UI elements (bullet count, health bar)
 func (g *Game) drawUI(screen *ebiten.Image) {
-	// Draw ammo info in top right corner with larger text and better styling
-	clipText := fmt.Sprintf("AMMO: %d / %d", g.player.CurrentClip, g.player.BulletCount)
+	// Draw weapon info in top right corner with larger text and better styling
+	var ammoText string
+	var weaponName string
+	var iconColor color.RGBA
 
-	// Draw reload indicator if reloading
-	if g.player.IsReloading {
-		reloadProgress := float64(g.player.ReloadTime - g.player.ReloadTimer) / float64(g.player.ReloadTime) * 100
-		clipText = fmt.Sprintf("RELOADING... %.0f%%", reloadProgress)
+	// Set text and icon based on current weapon
+	if g.player.CurrentWeapon == 0 {
+		// Machine gun
+		weaponName = "MACHINE GUN"
+		ammoText = fmt.Sprintf("%d / %d", g.player.CurrentClip, g.player.BulletCount)
+		iconColor = color.RGBA{255, 255, 0, 255} // Yellow
+
+		// Draw reload indicator if reloading
+		if g.player.IsReloading {
+			reloadProgress := float64(g.player.ReloadTime - g.player.ReloadTimer) / float64(g.player.ReloadTime) * 100
+			ammoText = fmt.Sprintf("RELOADING... %.0f%%", reloadProgress)
+		}
+	} else {
+		// Rocket launcher
+		weaponName = "ROCKET LAUNCHER"
+		ammoText = fmt.Sprintf("%d / %d", g.player.CurrentRocket, g.player.RocketCount)
+		iconColor = color.RGBA{255, 100, 0, 255} // Orange
+
+		// Draw reload indicator if reloading
+		if g.player.IsRocketReloading {
+			reloadProgress := float64(g.player.RocketReloadTime - g.player.RocketReloadTimer) / float64(g.player.RocketReloadTime) * 100
+			ammoText = fmt.Sprintf("RELOADING... %.0f%%", reloadProgress)
+		}
 	}
 
+	// Combine weapon name and ammo text
+	fullText := fmt.Sprintf("%s: %s", weaponName, ammoText)
+
 	// Draw a stylized background for the ammo text
-	textWidth := len(clipText) * 7 // Approximate width based on character count
+	textWidth := len(fullText) * 7 // Approximate width based on character count
 	ammoBoxWidth := float64(textWidth + 20)
 	ammoBoxHeight := 30.0
 	ammoBoxX := float64(g.width) - ammoBoxWidth - 10
@@ -569,16 +756,26 @@ func (g *Game) drawUI(screen *ebiten.Image) {
 	ebitenutil.DrawRect(screen, ammoBoxX, ammoBoxY, borderSize, ammoBoxHeight, color.RGBA{255, 215, 0, 255}) // Gold left
 	ebitenutil.DrawRect(screen, ammoBoxX + ammoBoxWidth - borderSize, ammoBoxY, borderSize, ammoBoxHeight, color.RGBA{255, 215, 0, 255}) // Gold right
 
-	// Draw bullet icon
-	bulletIconX := ammoBoxX + 5
-	bulletIconY := ammoBoxY + ammoBoxHeight/2 - 3
-	bulletIconWidth := 10.0
-	bulletIconHeight := 6.0
-	ebitenutil.DrawRect(screen, bulletIconX, bulletIconY, bulletIconWidth, bulletIconHeight, color.RGBA{255, 255, 0, 255})
+	// Draw weapon icon
+	iconX := ammoBoxX + 5
+	iconY := ammoBoxY + ammoBoxHeight/2 - 3
+	iconWidth := 10.0
+	iconHeight := 6.0
+
+	if g.player.CurrentWeapon == 0 {
+		// Draw bullet icon for machine gun
+		ebitenutil.DrawRect(screen, iconX, iconY, iconWidth, iconHeight, iconColor)
+	} else {
+		// Draw rocket icon for rocket launcher
+		ebitenutil.DrawRect(screen, iconX, iconY, iconWidth, iconHeight, iconColor)
+		// Add fins to the rocket icon
+		ebitenutil.DrawRect(screen, iconX, iconY - 2, iconWidth/3, iconHeight/2, iconColor)
+		ebitenutil.DrawRect(screen, iconX, iconY + iconHeight, iconWidth/3, iconHeight/2, iconColor)
+	}
 
 	// Draw text with offset to center vertically
 	textY := int(ammoBoxY) + int(ammoBoxHeight)/2 - 3
-	ebitenutil.DebugPrintAt(screen, clipText, int(ammoBoxX) + 20, textY)
+	ebitenutil.DebugPrintAt(screen, fullText, int(ammoBoxX) + 20, textY)
 
 	// Draw health bar with improved styling
 	healthBarWidth := 200
