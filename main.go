@@ -10,11 +10,11 @@ import (
 const (
     screenWidth  = 800
     screenHeight = 600
-    title        = "2D Platformer Engine"
+    title        = "Beanie Battles"
 )
 
 func main() {
-    log.Println("Starting 2D Platformer Engine...")
+    log.Println("Starting Beanie Battles...")
 
     // Create a new game instance
     log.Println("Creating game instance...")
