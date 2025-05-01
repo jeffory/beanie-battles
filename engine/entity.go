@@ -1973,6 +1973,13 @@ type Enemy struct {
     MoveTimer int     // Timer for changing direction
     Active    bool    // Whether the enemy is active
     OnGround  bool    // Whether the enemy is on the ground
+    EnemyType string  // Type of enemy: "kidney", "navy", "shooter"
+    CanShoot  bool    // Whether the enemy can shoot
+    ShootTimer int    // Timer for shooting
+    ShootRate  int    // How often the enemy shoots (in frames)
+    LastShot   int    // Frame when the enemy last shot
+    BulletSpeed float64 // Speed of the enemy's bullets
+    BulletDamage int   // Damage dealt by the enemy's bullets
 }
 
 // NewBullet creates a new bullet entity
@@ -2009,7 +2016,29 @@ func NewEnemy(x, y float64) *Enemy {
         MoveTimer: 120, // Change direction every 2 seconds
         Active:    true,
         OnGround:  false,
+        EnemyType: "kidney", // Default enemy type
+        CanShoot:  false,    // Regular enemies can't shoot
+        ShootTimer: 0,
+        ShootRate:  60,      // Shoot once per second (at 60 FPS)
+        LastShot:   0,
+        BulletSpeed: 8.0,
+        BulletDamage: 10,
     }
+}
+
+// NewShooterEnemy creates a new enemy that can shoot
+func NewShooterEnemy(x, y float64) *Enemy {
+    enemy := NewEnemy(x, y)
+    enemy.EnemyType = "shooter"
+    enemy.CanShoot = true
+    enemy.Color = color.RGBA{255, 0, 0, 255} // Red for shooter enemies
+    enemy.Health = 75
+    enemy.MaxHealth = 75
+    enemy.Speed = 1.5 // Slightly slower than regular enemies
+    enemy.ShootRate = 120 // Shoot every 2 seconds (at 60 FPS)
+    enemy.BulletSpeed = 6.0
+    enemy.BulletDamage = 15
+    return enemy
 }
 
 // Update updates the bullet state
@@ -2052,6 +2081,11 @@ func (e *Enemy) Update() {
 
     // Move in current direction
     e.VelX = float64(e.MoveDir) * e.Speed
+
+    // Update shooting timer for shooter enemies
+    if e.CanShoot {
+        e.ShootTimer++
+    }
 }
 
 // TakeDamage applies damage to the enemy
