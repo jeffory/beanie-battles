@@ -26,10 +26,10 @@
       "y": 300,
       "width": 200,
       "height": 20,
-      "type": "normal",
-      "moveX": 0,
+      "type": "moving",
+      "moveX": 100,
       "moveY": 0,
-      "speed": 0
+      "speed": 1
     },
     {
       "x": 200,
@@ -37,6 +37,16 @@
       "width": 200,
       "height": 20,
       "type": "normal",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
+    },
+    {
+      "x": 300,
+      "y": 500,
+      "width": 100,
+      "height": 10,
+      "type": "spike",
       "moveX": 0,
       "moveY": 0,
       "speed": 0
@@ -56,10 +66,10 @@
       "y": 300,
       "width": 200,
       "height": 20,
-      "type": "normal",
+      "type": "moving",
       "moveX": 0,
-      "moveY": 0,
-      "speed": 0
+      "moveY": 50,
+      "speed": 0.8
     },
     {
       "x": 1700,

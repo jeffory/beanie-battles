@@ -56,27 +56,47 @@
       "y": 350,
       "width": 150,
       "height": 20,
-      "type": "normal",
-      "moveX": 0,
+      "type": "moving",
+      "moveX": 100,
       "moveY": 0,
-      "speed": 0
+      "speed": 1
     },
     {
       "x": 650,
       "y": 250,
       "width": 150,
       "height": 20,
-      "type": "normal",
+      "type": "moving",
       "moveX": 0,
-      "moveY": 0,
-      "speed": 0
+      "moveY": 100,
+      "speed": 1
     },
     {
       "x": 850,
       "y": 150,
       "width": 150,
       "height": 20,
-      "type": "normal",
+      "type": "moving",
+      "moveX": 80,
+      "moveY": 50,
+      "speed": 1
+    },
+    {
+      "x": 300,
+      "y": 500,
+      "width": 100,
+      "height": 10,
+      "type": "spike",
+      "moveX": 0,
+      "moveY": 0,
+      "speed": 0
+    },
+    {
+      "x": 700,
+      "y": 500,
+      "width": 100,
+      "height": 10,
+      "type": "spike",
       "moveX": 0,
       "moveY": 0,
       "speed": 0
@@ -115,8 +135,8 @@
     }
   ],
   "flagPosition": {
-    "x": 1200,
-    "y": 36
+    "x": 1500,
+    "y": -100
   },
   "playerStart": {
     "x": 100,

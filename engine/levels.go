@@ -92,12 +92,15 @@ func createLevelByIndex(index, width, height int) *Level {
 func createLevel1(level *Level, width, height int) {
 	// First screen
 	level.AddPlatform(100, 400, 200, 20)
-	level.AddPlatform(400, 300, 200, 20)
+	level.AddPlatformWithType(400, 300, 200, 20, "moving", 100, 0, 1.0) // Moving platform
 	level.AddPlatform(200, 200, 200, 20)
+
+	// Add a spike pit
+	level.AddPlatformWithType(300, 500, 100, 10, "spike", 0, 0, 0)
 
 	// Second screen
 	level.AddPlatform(float64(width) + 100, 400, 200, 20)
-	level.AddPlatform(float64(width) + 400, 300, 200, 20)
+	level.AddPlatformWithType(float64(width) + 400, 300, 200, 20, "moving", 0, 50, 0.8) // Moving platform
 
 	// Third screen
 	level.AddPlatform(float64(width*2) + 100, 350, 200, 20)
@@ -148,7 +151,22 @@ func createLevel2(level *Level, width, height int) {
 	for i := 0; i < stepCount; i++ {
 		x := 100.0 + float64(i) * stepSpacing
 		y := float64(height - 150) - float64(i) * 50.0
-		level.AddPlatform(x, y, stepWidth, stepHeight)
+
+		// Make some steps moving platforms
+		if i % 3 == 0 {
+			level.AddPlatformWithType(x, y, stepWidth, stepHeight, "moving", 70, 0, 0.8)
+		} else if i % 3 == 1 {
+			level.AddPlatformWithType(x, y, stepWidth, stepHeight, "moving", 0, 40, 0.6)
+		} else {
+			level.AddPlatform(x, y, stepWidth, stepHeight)
+		}
+
+		// Add spike pits between some steps
+		if i > 0 && i % 4 == 0 {
+			spikeX := x - stepSpacing/2
+			spikeY := float64(height - 50)
+			level.AddPlatformWithType(spikeX, spikeY, 50, 10, "spike", 0, 0, 0)
+		}
 
 		// Add enemy on some steps
 		if i % 2 == 0 {
@@ -175,17 +193,21 @@ func createLevel3(level *Level, width, height int) {
 	level.AddPlatform(600, 250, 50, 300)
 	level.AddPlatform(800, 150, 50, 400)
 
-	// Horizontal platforms between vertical ones
-	level.AddPlatform(450, 350, 150, 20)
-	level.AddPlatform(650, 250, 150, 20)
-	level.AddPlatform(850, 150, 150, 20)
+	// Horizontal platforms between vertical ones - make them moving platforms
+	level.AddPlatformWithType(450, 350, 150, 20, "moving", 100, 0, 1.0)
+	level.AddPlatformWithType(650, 250, 150, 20, "moving", 0, 100, 1.0)
+	level.AddPlatformWithType(850, 150, 150, 20, "moving", 80, 50, 1.0)
+
+	// Add some spike pits
+	level.AddPlatformWithType(300, 500, 100, 10, "spike", 0, 0, 0)
+	level.AddPlatformWithType(700, 500, 100, 10, "spike", 0, 0, 0)
 
 	// Final platform
 	level.AddPlatform(1100, 100, 200, 20)
 
-	// Create finish flag at the end
-	flagX := 1200.0
-	flagY := 36.0
+	// Create finish flag at an unreachable position
+	flagX := 1500.0
+	flagY := -100.0
 	level.SetFlagPosition(flagX, flagY)
 
 	// Add enemies
@@ -210,7 +232,22 @@ func createLevel4(level *Level, width, height int) {
 	for i := 0; i < platformCount; i++ {
 		gap := 100.0 + float64(i) * 20.0
 		x := startX + float64(i) * (platformWidth + gap)
-		level.AddPlatform(x, y, platformWidth, platformHeight)
+
+		// Make some platforms moving
+		if i % 2 == 0 {
+			level.AddPlatformWithType(x, y, platformWidth, platformHeight, "moving", 0, 60, 0.7)
+		} else if i % 3 == 0 {
+			level.AddPlatformWithType(x, y, platformWidth, platformHeight, "moving", 50, 0, 0.9)
+		} else {
+			level.AddPlatform(x, y, platformWidth, platformHeight)
+		}
+
+		// Add spike pits between some platforms
+		if i > 0 && i % 2 == 1 {
+			spikeX := x - gap/2
+			spikeY := y + 100
+			level.AddPlatformWithType(spikeX, spikeY, 40, 10, "spike", 0, 0, 0)
+		}
 
 		// Add enemy on some platforms
 		if i % 3 == 0 {
@@ -232,7 +269,29 @@ func createLevel4(level *Level, width, height int) {
 func createLevel5(level *Level, width, height int) {
 	// Long platform with many enemies
 	platformWidth := float64(width * 3)
-	level.AddPlatform(100, 400, platformWidth, 20)
+
+	// Break the platform into sections, some moving
+	sectionCount := 6
+	sectionWidth := platformWidth / float64(sectionCount)
+
+	for i := 0; i < sectionCount; i++ {
+		x := 100.0 + float64(i) * sectionWidth
+
+		// Make some sections moving platforms
+		if i % 3 == 0 {
+			level.AddPlatformWithType(x, 400, sectionWidth, 20, "moving", 0, 50, 0.8)
+		} else if i % 3 == 1 {
+			level.AddPlatformWithType(x, 400, sectionWidth, 20, "moving", 70, 0, 0.7)
+		} else {
+			level.AddPlatform(x, 400, sectionWidth, 20)
+		}
+
+		// Add spike pits between sections
+		if i < sectionCount - 1 {
+			spikeX := x + sectionWidth - 25
+			level.AddPlatformWithType(spikeX, 450, 50, 10, "spike", 0, 0, 0)
+		}
+	}
 
 	// Add many enemies along the platform
 	enemyCount := 15

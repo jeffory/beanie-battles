@@ -12,48 +12,8 @@
       "speed": 0
     },
     {
-      "x": 100,
-      "y": 450,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
-      "x": 300,
-      "y": 400,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
       "x": 500,
       "y": 350,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
-      "x": 700,
-      "y": 300,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
-      "x": 900,
-      "y": 250,
       "width": 150,
       "height": 20,
       "type": "normal",
@@ -72,26 +32,6 @@
       "speed": 0
     },
     {
-      "x": 1300,
-      "y": 150,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
-      "x": 1500,
-      "y": 100,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
       "x": 1700,
       "y": 50,
       "width": 150,
@@ -102,48 +42,8 @@
       "speed": 0
     },
     {
-      "x": 1900,
-      "y": 0,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
-      "x": 2100,
-      "y": -50,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
       "x": 2300,
       "y": -100,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
-      "x": 2500,
-      "y": -150,
-      "width": 150,
-      "height": 20,
-      "type": "normal",
-      "moveX": 0,
-      "moveY": 0,
-      "speed": 0
-    },
-    {
-      "x": 2700,
-      "y": -200,
       "width": 150,
       "height": 20,
       "type": "normal",
@@ -172,55 +72,14 @@
       "speed": 0
     }
   ],
-  "enemySpawns": [
-    {
-      "x": 175,
-      "y": 400,
-      "type": "kidney"
-    },
-    {
-      "x": 575,
-      "y": 300,
-      "type": "kidney"
-    },
-    {
-      "x": 975,
-      "y": 200,
-      "type": "kidney"
-    },
-    {
-      "x": 1375,
-      "y": 100,
-      "type": "kidney"
-    },
-    {
-      "x": 1775,
-      "y": 0,
-      "type": "kidney"
-    },
-    {
-      "x": 2175,
-      "y": -100,
-      "type": "kidney"
-    },
-    {
-      "x": 2575,
-      "y": -200,
-      "type": "kidney"
-    },
-    {
-      "x": 2975,
-      "y": -300,
-      "type": "kidney"
-    }
-  ],
+  "enemySpawns": [],
   "flagPosition": {
-    "x": 3150,
-    "y": -314
+    "x": 3602.924796580959,
+    "y": 516
   },
   "playerStart": {
-    "x": 100,
-    "y": 100
+    "x": 3540.924796580959,
+    "y": 486
   },
   "backgroundType": "default"
 }

@@ -2316,18 +2316,22 @@ func (mp *MovingPlatform) SetY(y float64)     { mp.Y = y }
 func (mp *MovingPlatform) SetVelX(vx float64) { /* Moving platforms have their own movement logic */ }
 func (mp *MovingPlatform) SetVelY(vy float64) { /* Moving platforms have their own movement logic */ }
 func (mp *MovingPlatform) GetVelX() float64   { 
-    // Calculate velocity based on position change
+    // Calculate velocity based on the derivative of the position function
     if mp.MoveX == 0 {
         return 0
     }
-    return (mp.X - mp.StartX) / mp.MoveX * mp.Speed
+    // The position is calculated as: StartX + MoveX * (sin(t) * 0.5 + 0.5)
+    // The derivative is: MoveX * cos(t) * 0.5 * 0.05 * Speed
+    return mp.MoveX * math.Cos(mp.MovementTimer * 0.05) * 0.5 * 0.05 * mp.Speed
 }
 func (mp *MovingPlatform) GetVelY() float64   { 
-    // Calculate velocity based on position change
+    // Calculate velocity based on the derivative of the position function
     if mp.MoveY == 0 {
         return 0
     }
-    return (mp.Y - mp.StartY) / mp.MoveY * mp.Speed
+    // The position is calculated as: StartY + MoveY * (sin(t) * 0.5 + 0.5)
+    // The derivative is: MoveY * cos(t) * 0.5 * 0.05 * Speed
+    return mp.MoveY * math.Cos(mp.MovementTimer * 0.05) * 0.5 * 0.05 * mp.Speed
 }
 func (mp *MovingPlatform) IsCollidable() bool { return true }
 
