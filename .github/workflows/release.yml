@@ -1,0 +1,44 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Release Go Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+
+          # Linux builds
+          GOOS=linux GOARCH=amd64 go build -o dist/app-linux-amd64
+          GOOS=linux GOARCH=arm64 go build -o dist/app-linux-arm64
+          GOOS=linux GOARCH=arm GOARM=7 go build -o dist/app-linux-armv7
+
+          # macOS builds
+          GOOS=darwin GOARCH=amd64 go build -o dist/app-mac-amd64
+          GOOS=darwin GOARCH=arm64 go build -o dist/app-mac-arm64
+
+          # Windows builds
+          GOOS=windows GOARCH=amd64 go build -o dist/app-windows-amd64.exe
+          GOOS=windows GOARCH=arm64 go build -o dist/app-windows-arm64.exe
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
