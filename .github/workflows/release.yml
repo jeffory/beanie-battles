@@ -25,11 +25,15 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev libxrandr-dev
+          sudo apt-get install -y libx11-dev libxrandr-dev libgl1-mesa-dev xorg-dev
 
       - name: Build binaries
         run: |
           mkdir -p dist
+
+          # Windows builds
+          GOOS=windows GOARCH=amd64 go build -o dist/beanie-battles-windows-amd64.exe || true
+          GOOS=windows GOARCH=arm64 go build -o dist/beanie-battles-windows-arm64.exe || true
 
           # Linux builds
           GOOS=linux GOARCH=amd64 go build -o dist/beanie-battles-linux-amd64 || true
@@ -38,9 +42,7 @@ jobs:
           GOOS=darwin GOARCH=amd64 go build -o dist/beanie-battles-mac-amd64 || true
           GOOS=darwin GOARCH=arm64 go build -o dist/beanie-battles-mac-arm64 || true
 
-          # Windows builds
-          GOOS=windows GOARCH=amd64 go build -o dist/beanie-battles-windows-amd64.exe || true
-          GOOS=windows GOARCH=arm64 go build -o dist/beanie-battles-windows-arm64.exe || true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
